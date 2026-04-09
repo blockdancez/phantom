@@ -1,0 +1,14 @@
+{
+  "name": "todo-api",
+  "version": "1.0.0",
+  "description": "Simple Todo REST API",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js"
+  },
+  "dependencies": {
+    "express": "^4.21.2",
+    "pino": "^9.6.0",
+    "pino-http": "^10.4.0"
+  }
+}
