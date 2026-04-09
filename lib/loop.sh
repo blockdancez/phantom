@@ -70,6 +70,21 @@ claude_new() {
     2>&1 | python3 "$STREAM_PARSER" "$log_file"
 }
 
+# 调用 Claude（新会话，plan 模式）— Claude 先规划再执行
+claude_new_plan() {
+  local prompt="$1"
+  local log_file="$2"
+
+  claude -p \
+    --dangerously-skip-permissions \
+    --permission-mode plan \
+    --output-format stream-json \
+    --verbose \
+    --include-partial-messages \
+    "$prompt" \
+    2>&1 | python3 "$STREAM_PARSER" "$log_file"
+}
+
 # 调用 Claude（接续上一次会话）
 claude_continue() {
   local prompt="$1"
