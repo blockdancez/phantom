@@ -19,10 +19,10 @@ usage() {
 Phantom AutoDev - 全自主需求开发程序
 
 用法:
-  ./phantom-dev.sh <需求文档路径> [项目目录]
+  ./phantom.sh <需求文档路径或需求文本> [项目目录]
 
 参数:
-  需求文档路径    必须，指向需求文档的路径（.md / .txt）
+  需求            必须，可以是文件路径（.md / .txt）或直接输入需求文本
   项目目录        可选，代码生成的目标目录（默认: ./projects/<自动命名>）
 
 选项:
@@ -30,9 +30,10 @@ Phantom AutoDev - 全自主需求开发程序
   --resume        从上次中断的阶段继续
 
 示例:
-  ./phantom-dev.sh requirements.md
-  ./phantom-dev.sh docs/spec.md ./my-project
-  ./phantom-dev.sh requirements.md --resume
+  ./phantom.sh requirements.md
+  ./phantom.sh "构建一个Todo API，使用Node.js + Express，端口3000"
+  ./phantom.sh docs/spec.md ./my-project
+  ./phantom.sh requirements.md --resume
 EOF
 }
 
@@ -56,17 +57,21 @@ while [[ $# -gt 0 ]]; do
 done
 
 if [[ -z "$REQ_FILE" ]]; then
-  log_error "请提供需求文档路径"
+  log_error "请提供需求文档路径或需求文本"
   usage
   exit 1
 fi
 
-# 转换为绝对路径
-REQ_FILE="$(cd "$(dirname "$REQ_FILE")" && pwd)/$(basename "$REQ_FILE")"
-
-if [[ ! -f "$REQ_FILE" ]]; then
-  log_error "需求文档不存在: $REQ_FILE"
-  exit 1
+# 判断是文件路径还是纯文本需求
+if [[ -f "$REQ_FILE" ]]; then
+  # 是文件路径，转换为绝对路径
+  REQ_FILE="$(cd "$(dirname "$REQ_FILE")" && pwd)/$(basename "$REQ_FILE")"
+else
+  # 是纯文本需求，写入临时文件
+  REQ_TEXT="$REQ_FILE"
+  REQ_FILE="$(mktemp "${TMPDIR:-/tmp}/phantom-req-XXXXXX.md")"
+  echo "$REQ_TEXT" > "$REQ_FILE"
+  log_info "需求文本已写入临时文件: $REQ_FILE"
 fi
 
 # 如果未指定项目目录，自动生成目录名
