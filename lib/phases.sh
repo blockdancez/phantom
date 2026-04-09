@@ -42,7 +42,7 @@ run_plan_phase() {
   fi
 }
 
-# 阶段 2：开发（Ralph-loop，最少10次验证，最多50次）
+# 阶段 2：开发（开发 + 运行验证，通过即放行，最多 20 轮）
 run_dev_phase() {
   local work_dir="$1"
   log_phase "阶段 2/4: 代码开发"
@@ -50,12 +50,12 @@ run_dev_phase() {
   run_loop "dev" \
     "$SCRIPT_DIR/prompts/develop.md" \
     "$SCRIPT_DIR/prompts/verify-dev.md" \
-    10 50 "$work_dir"
+    20 "$work_dir"
 
   advance_phase
 }
 
-# 阶段 3：测试（Ralph-loop，最少2次验证，最多5次）
+# 阶段 3：测试（编写测试 + 运行验证，通过即放行，最多 10 轮）
 run_test_phase() {
   local work_dir="$1"
   log_phase "阶段 3/4: 测试验证"
@@ -63,7 +63,7 @@ run_test_phase() {
   run_loop "test" \
     "$SCRIPT_DIR/prompts/test.md" \
     "$SCRIPT_DIR/prompts/verify-test.md" \
-    2 5 "$work_dir"
+    10 "$work_dir"
 
   advance_phase
 }

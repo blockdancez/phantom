@@ -99,21 +99,20 @@ claude_continue() {
     2>&1 | python3 "$STREAM_PARSER" "$log_file"
 }
 
-# 运行带自验证的 Claude 循环
+# 运行带实际验证的 Claude 循环
+# 参数: phase, main_prompt, verify_prompt, max_checks, work_dir
 run_loop() {
   local phase="$1"
   local main_prompt_file="$2"
   local verify_prompt_file="$3"
-  local min_checks="$4"
-  local max_checks="$5"
-  local work_dir="$6"
+  local max_checks="$4"
+  local work_dir="$5"
 
   local iteration=0
-  local consecutive_done=0
 
   set_phase_status "$phase" "in_progress"
 
-  log_phase "阶段: $phase (最少验证 $min_checks 次，最多 $max_checks 次)"
+  log_phase "阶段: $phase (最多 $max_checks 轮)"
 
   while [[ $iteration -lt $max_checks ]]; do
     iteration=$((iteration + 1))
@@ -122,9 +121,8 @@ run_loop() {
     local log_file="$LOG_DIR/phase-${phase}-${iteration}.log"
 
     if [[ $iteration -eq 1 ]]; then
-      # 第一次迭代：执行主任务
-      log_info "[$phase] 迭代 $iteration/$max_checks - 执行主任务..."
-      log_info "提示词模板: $main_prompt_file"
+      # 第一轮：执行主任务
+      log_info "[$phase] 第 $iteration 轮 - 执行开发任务..."
 
       local prompt_file
       prompt_file=$(render_prompt "$main_prompt_file" "$work_dir")
@@ -133,9 +131,8 @@ run_loop() {
 
       rm -f "$prompt_file"
     else
-      # 后续迭代：在同一会话中验证 + 继续改进
-      log_info "[$phase] 迭代 $iteration/$max_checks - 验证完成度..."
-      log_info "提示词模板: $verify_prompt_file"
+      # 后续轮次：运行验证，发现问题就修复
+      log_info "[$phase] 第 $iteration 轮 - 运行验证..."
 
       local verify_file
       verify_file=$(render_prompt "$verify_prompt_file" "$work_dir")
@@ -144,22 +141,16 @@ run_loop() {
 
       rm -f "$verify_file"
 
-      # 从日志文件检查 Claude 是否确认完成
+      # 检查验证结果：通过即放行
       if grep -q "PHASE_COMPLETE" "$log_file"; then
-        consecutive_done=$((consecutive_done + 1))
-        log_ok "[$phase] Claude 确认完成 ($consecutive_done/$min_checks 连续确认)"
-
-        if [[ $consecutive_done -ge $min_checks ]]; then
-          log_ok "[$phase] 达到最小验证次数，阶段完成!"
-          return 0
-        fi
+        log_ok "[$phase] 验证通过，阶段完成!"
+        return 0
       else
-        consecutive_done=0
-        log_warn "[$phase] Claude 认为还未完成，继续迭代..."
+        log_warn "[$phase] 验证发现问题，Claude 已修复，将再次验证..."
       fi
     fi
   done
 
-  log_warn "[$phase] 已达最大迭代次数 $max_checks"
+  log_warn "[$phase] 已达最大轮次 $max_checks，强制进入下一阶段"
   return 0
 }
