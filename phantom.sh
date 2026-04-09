@@ -64,16 +64,39 @@ done
 # ── Resume 模式 ──────────────────────────────────────────
 
 if [[ "$RESUME" == true ]]; then
-  # 如果未指定项目目录，尝试找到最近的项目
+  # 如果未指定项目，列出所有项目让用户选择
   if [[ -z "$PROJECT_DIR" ]]; then
-    LATEST=$(find "$SCRIPT_DIR/projects" -name "state.json" -path "*/.phantom/*" -maxdepth 3 2>/dev/null | \
-      xargs ls -t 2>/dev/null | head -1)
-    if [[ -n "$LATEST" ]]; then
-      PROJECT_DIR="$(dirname "$(dirname "$LATEST")")"
-    else
-      log_error "找不到可恢复的项目。请指定项目名：./phantom.sh --resume todo-api"
+    # 收集所有含 state.json 的项目
+    PROJECTS=()
+    while IFS= read -r state_file; do
+      proj_dir="$(dirname "$(dirname "$state_file")")"
+      proj_name="$(basename "$proj_dir")"
+      phase=$(jq -r '.current_phase' "$state_file" 2>/dev/null)
+      PROJECTS+=("$proj_dir|$proj_name|$phase")
+    done < <(find "$SCRIPT_DIR/projects" -name "state.json" -path "*/.phantom/*" -maxdepth 3 2>/dev/null)
+
+    if [[ ${#PROJECTS[@]} -eq 0 ]]; then
+      log_error "没有找到可恢复的项目"
       exit 1
     fi
+
+    echo ""
+    log_info "可恢复的项目："
+    echo ""
+    for i in "${!PROJECTS[@]}"; do
+      IFS='|' read -r dir name phase <<< "${PROJECTS[$i]}"
+      printf "  ${CYAN}[%d]${NC} %-30s (阶段: %s)\n" "$((i + 1))" "$name" "$phase"
+    done
+    echo ""
+    printf "请选择项目编号: "
+    read -r CHOICE
+
+    if [[ ! "$CHOICE" =~ ^[0-9]+$ ]] || [[ "$CHOICE" -lt 1 ]] || [[ "$CHOICE" -gt ${#PROJECTS[@]} ]]; then
+      log_error "无效的选择"
+      exit 1
+    fi
+
+    IFS='|' read -r PROJECT_DIR _ _ <<< "${PROJECTS[$((CHOICE - 1))]}"
   elif [[ -d "$SCRIPT_DIR/projects/$PROJECT_DIR" ]]; then
     # 传入的是项目名，拼接完整路径
     PROJECT_DIR="$SCRIPT_DIR/projects/$PROJECT_DIR"
