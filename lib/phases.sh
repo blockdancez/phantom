@@ -100,6 +100,7 @@ run_deploy_phase() {
     if echo "$result" | grep -qi "PHASE_COMPLETE"; then
       log_ok "Docker 部署验证成功!"
       set_phase_status "deploy" "completed"
+      advance_phase
       return 0
     fi
 
