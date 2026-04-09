@@ -54,15 +54,20 @@ PYEOF
   echo "$output_file"
 }
 
-# 调用 Claude（新会话）
-# 使用 script -q 分配伪终端，让 Claude 流式输出到控制台
+STREAM_PARSER="$(dirname "${BASH_SOURCE[0]}")/stream-parser.py"
+
+# 调用 Claude（新会话）— 流式输出到控制台，结果保存到日志文件
 claude_new() {
   local prompt="$1"
   local log_file="$2"
 
-  script -q "$log_file" claude -p \
+  claude -p \
     --dangerously-skip-permissions \
-    "$prompt"
+    --output-format stream-json \
+    --verbose \
+    --include-partial-messages \
+    "$prompt" \
+    2>&1 | python3 "$STREAM_PARSER" "$log_file"
 }
 
 # 调用 Claude（接续上一次会话）
@@ -70,9 +75,13 @@ claude_continue() {
   local prompt="$1"
   local log_file="$2"
 
-  script -q "$log_file" claude -p -c \
+  claude -p -c \
     --dangerously-skip-permissions \
-    "$prompt"
+    --output-format stream-json \
+    --verbose \
+    --include-partial-messages \
+    "$prompt" \
+    2>&1 | python3 "$STREAM_PARSER" "$log_file"
 }
 
 # 运行带自验证的 Claude 循环
