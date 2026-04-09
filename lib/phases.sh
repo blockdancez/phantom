@@ -89,15 +89,14 @@ run_deploy_phase() {
     local prompt_file
     prompt_file=$(render_prompt "$SCRIPT_DIR/prompts/deploy.md" "$work_dir")
 
-    local result
-    result=$(claude -p \
+    claude -p \
       --dangerously-skip-permissions \
       "$(cat "$prompt_file")" \
-      2>&1 | tee "$LOG_DIR/phase-deploy-${attempt}.log")
+      2>&1 | tee "$LOG_DIR/phase-deploy-${attempt}.log"
 
     rm -f "$prompt_file"
 
-    if echo "$result" | grep -qi "PHASE_COMPLETE"; then
+    if grep -qi "PHASE_COMPLETE" "$LOG_DIR/phase-deploy-${attempt}.log"; then
       log_ok "Docker 部署验证成功!"
       set_phase_status "deploy" "completed"
       advance_phase

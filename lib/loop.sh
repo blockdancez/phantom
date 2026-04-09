@@ -79,6 +79,7 @@ run_loop() {
     if [[ $iteration -eq 1 ]]; then
       # 第一次迭代：执行主任务
       log_info "[$phase] 迭代 $iteration/$max_checks - 执行主任务..."
+      log_info "提示词模板: $main_prompt_file"
 
       local prompt_file
       prompt_file=$(render_prompt "$main_prompt_file" "$work_dir")
@@ -92,20 +93,21 @@ run_loop() {
     else
       # 后续迭代：验证 + 继续改进
       log_info "[$phase] 迭代 $iteration/$max_checks - 验证完成度..."
+      log_info "提示词模板: $verify_prompt_file"
 
       local verify_file
       verify_file=$(render_prompt "$verify_prompt_file" "$work_dir")
 
-      local result
-      result=$(claude -p \
+      # 输出到终端和日志文件，然后从日志文件读取结果判断完成状态
+      claude -p \
         --dangerously-skip-permissions \
         "$(cat "$verify_file")" \
-        2>&1 | tee -a "$log_file")
+        2>&1 | tee "$log_file"
 
       rm -f "$verify_file"
 
-      # 检查 Claude 是否确认完成
-      if echo "$result" | grep -q "PHASE_COMPLETE"; then
+      # 从日志文件检查 Claude 是否确认完成
+      if grep -q "PHASE_COMPLETE" "$log_file"; then
         consecutive_done=$((consecutive_done + 1))
         log_ok "[$phase] Claude 确认完成 ($consecutive_done/$min_checks 连续确认)"
 
