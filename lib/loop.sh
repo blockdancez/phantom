@@ -2,7 +2,7 @@
 # lib/loop.sh - Ralph-loop 循环引擎
 #
 # 核心原理：在同一个 Claude 会话中反复验证。
-# 第一次调用启动新会话，后续用 --resume 接续同一会话。
+# 第一次调用启动新会话，后续用 -c 接续上一次会话。
 # Claude 会自动压缩上下文，保持连续性。
 
 source "$(dirname "${BASH_SOURCE[0]}")/utils.sh"
@@ -23,7 +23,6 @@ render_prompt() {
   local plan=""
   [[ -f ".phantom/plan.md" ]] && plan=$(cat ".phantom/plan.md")
 
-  # 使用 python3 进行安全的多行替换（awk -v 无法处理含换行符的变量）
   local req_tmp plan_tmp
   req_tmp=$(mktemp)
   plan_tmp=$(mktemp)
@@ -55,67 +54,26 @@ PYEOF
   echo "$output_file"
 }
 
-# 调用 Claude 并获取 session ID（首次调用）
-# 输出同时显示在终端和日志文件
-# session ID 保存到 .phantom/session_id
-claude_call_new() {
+# 调用 Claude（新会话）
+claude_new() {
   local prompt="$1"
   local log_file="$2"
 
-  # 用 json 格式获取 session_id，同时把可读结果输出到终端
-  local json_output
-  json_output=$(claude -p \
+  claude -p \
     --dangerously-skip-permissions \
-    --output-format json \
-    "$prompt" 2>&1)
-
-  # 提取 session_id
-  local sid
-  sid=$(echo "$json_output" | jq -r '.session_id // empty' 2>/dev/null)
-  if [[ -n "$sid" ]]; then
-    echo "$sid" > ".phantom/session_id"
-    log_info "会话 ID: $sid"
-  fi
-
-  # 提取可读结果并输出
-  local result_text
-  result_text=$(echo "$json_output" | jq -r '.result // empty' 2>/dev/null)
-  if [[ -n "$result_text" ]]; then
-    echo "$result_text" | tee "$log_file"
-  else
-    # 如果 json 解析失败，直接输出原始内容
-    echo "$json_output" | tee "$log_file"
-  fi
+    "$prompt" \
+    2>&1 | tee "$log_file"
 }
 
-# 调用 Claude 并接续已有会话（后续调用）
-claude_call_resume() {
+# 调用 Claude（接续上一次会话）
+claude_continue() {
   local prompt="$1"
   local log_file="$2"
 
-  local sid=""
-  [[ -f ".phantom/session_id" ]] && sid=$(cat ".phantom/session_id")
-
-  if [[ -n "$sid" ]]; then
-    local json_output
-    json_output=$(claude -p \
-      --dangerously-skip-permissions \
-      --output-format json \
-      --resume "$sid" \
-      "$prompt" 2>&1)
-
-    local result_text
-    result_text=$(echo "$json_output" | jq -r '.result // empty' 2>/dev/null)
-    if [[ -n "$result_text" ]]; then
-      echo "$result_text" | tee "$log_file"
-    else
-      echo "$json_output" | tee "$log_file"
-    fi
-  else
-    # 没有 session_id，回退到新会话
-    log_warn "没有找到会话 ID，启动新会话..."
-    claude_call_new "$prompt" "$log_file"
-  fi
+  claude -p -c \
+    --dangerously-skip-permissions \
+    "$prompt" \
+    2>&1 | tee "$log_file"
 }
 
 # 运行带自验证的 Claude 循环
@@ -141,14 +99,14 @@ run_loop() {
     local log_file="$LOG_DIR/phase-${phase}-${iteration}.log"
 
     if [[ $iteration -eq 1 ]]; then
-      # 第一次迭代：执行主任务，启动新会话
+      # 第一次迭代：执行主任务
       log_info "[$phase] 迭代 $iteration/$max_checks - 执行主任务..."
       log_info "提示词模板: $main_prompt_file"
 
       local prompt_file
       prompt_file=$(render_prompt "$main_prompt_file" "$work_dir")
 
-      claude_call_new "$(cat "$prompt_file")" "$log_file"
+      claude_continue "$(cat "$prompt_file")" "$log_file"
 
       rm -f "$prompt_file"
     else
@@ -159,7 +117,7 @@ run_loop() {
       local verify_file
       verify_file=$(render_prompt "$verify_prompt_file" "$work_dir")
 
-      claude_call_resume "$(cat "$verify_file")" "$log_file"
+      claude_continue "$(cat "$verify_file")" "$log_file"
 
       rm -f "$verify_file"
 
