@@ -1,0 +1,6 @@
+node_modules/
+test-project/
+project/
+projects/
+.DS_Store
+.phantom/
