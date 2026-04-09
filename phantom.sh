@@ -20,25 +20,27 @@ Phantom AutoDev - 全自主需求开发程序
 
 用法:
   ./phantom.sh <需求文档路径或需求文本> [项目目录]
+  ./phantom.sh --resume [项目目录]
 
 参数:
-  需求            必须，可以是文件路径（.md / .txt）或直接输入需求文本
+  需求            可以是文件路径（.md / .txt）或直接输入需求文本
   项目目录        可选，代码生成的目标目录（默认: ./projects/<自动命名>）
 
 选项:
   -h, --help      显示帮助
-  --resume        从上次中断的阶段继续
+  --resume [项目名]  从上次中断的阶段继续（从 state.json 恢复）
 
 示例:
   ./phantom.sh requirements.md
   ./phantom.sh "构建一个Todo API，使用Node.js + Express，端口3000"
   ./phantom.sh docs/spec.md ./my-project
-  ./phantom.sh requirements.md --resume
+  ./phantom.sh --resume
+  ./phantom.sh --resume todo-api
 EOF
 }
 
 RESUME=false
-REQ_FILE=""
+REQ_INPUT=""
 PROJECT_DIR=""
 
 while [[ $# -gt 0 ]]; do
@@ -46,8 +48,11 @@ while [[ $# -gt 0 ]]; do
     -h|--help) usage; exit 0 ;;
     --resume) RESUME=true; shift ;;
     *)
-      if [[ -z "$REQ_FILE" ]]; then
-        REQ_FILE="$1"
+      if [[ "$RESUME" == true ]] && [[ -z "$PROJECT_DIR" ]]; then
+        # --resume 模式下，参数当作项目目录
+        PROJECT_DIR="$1"
+      elif [[ -z "$REQ_INPUT" ]]; then
+        REQ_INPUT="$1"
       elif [[ -z "$PROJECT_DIR" ]]; then
         PROJECT_DIR="$1"
       fi
@@ -56,64 +61,96 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-if [[ -z "$REQ_FILE" ]]; then
-  log_error "请提供需求文档路径或需求文本"
-  usage
-  exit 1
-fi
+# ── Resume 模式 ──────────────────────────────────────────
 
-# 判断是文件路径还是纯文本需求
-if [[ -f "$REQ_FILE" ]]; then
-  # 是文件路径，转换为绝对路径
-  REQ_FILE="$(cd "$(dirname "$REQ_FILE")" && pwd)/$(basename "$REQ_FILE")"
-else
-  # 是纯文本需求，写入临时文件
-  REQ_TEXT="$REQ_FILE"
-  REQ_FILE="$(mktemp "${TMPDIR:-/tmp}/phantom-req-XXXXXX.md")"
-  echo "$REQ_TEXT" > "$REQ_FILE"
-  log_info "需求文本已写入临时文件: $REQ_FILE"
-fi
-
-# 如果未指定项目目录，自动生成目录名
-if [[ -z "$PROJECT_DIR" ]]; then
-  # 用 Claude 从需求文档提取一个简短的英文项目名
-  AUTO_NAME=$(claude -p --dangerously-skip-permissions \
-    "Read this file: $REQ_FILE. Based on its content, output ONLY a short kebab-case project directory name (e.g. todo-api, user-auth-service, blog-platform). No explanation, no quotes, just the name." \
-    2>/dev/null | tr -d '[:space:]' | head -c 50)
-
-  # 回退：如果 Claude 没返回有效名字，用时间戳
-  if [[ -z "$AUTO_NAME" ]] || [[ ! "$AUTO_NAME" =~ ^[a-z0-9][a-z0-9-]*$ ]]; then
-    AUTO_NAME="project-$(date +%Y%m%d-%H%M%S)"
+if [[ "$RESUME" == true ]]; then
+  # 如果未指定项目目录，尝试找到最近的项目
+  if [[ -z "$PROJECT_DIR" ]]; then
+    LATEST=$(find "$SCRIPT_DIR/projects" -name "state.json" -path "*/.phantom/*" -maxdepth 3 2>/dev/null | \
+      xargs ls -t 2>/dev/null | head -1)
+    if [[ -n "$LATEST" ]]; then
+      PROJECT_DIR="$(dirname "$(dirname "$LATEST")")"
+    else
+      log_error "找不到可恢复的项目。请指定项目名：./phantom.sh --resume todo-api"
+      exit 1
+    fi
+  elif [[ -d "$SCRIPT_DIR/projects/$PROJECT_DIR" ]]; then
+    # 传入的是项目名，拼接完整路径
+    PROJECT_DIR="$SCRIPT_DIR/projects/$PROJECT_DIR"
+  elif [[ ! -d "$PROJECT_DIR" ]]; then
+    log_error "项目不存在: $PROJECT_DIR (也不在 projects/ 下)"
+    exit 1
   fi
 
-  PROJECT_DIR="./projects/$AUTO_NAME"
-  log_info "自动生成项目目录: $PROJECT_DIR"
-fi
+  if [[ ! -f "$PROJECT_DIR/.phantom/state.json" ]]; then
+    log_error "项目目录中没有状态文件: $PROJECT_DIR/.phantom/state.json"
+    exit 1
+  fi
 
-mkdir -p "$PROJECT_DIR"
-PROJECT_DIR="$(cd "$PROJECT_DIR" && pwd)"
+  PROJECT_DIR="$(cd "$PROJECT_DIR" && pwd)"
+  cd "$PROJECT_DIR"
 
-# ── 初始化 ────────────────────────────────────────────────
+  # 从 state.json 恢复需求文件路径
+  REQ_FILE=$(jq -r '.requirements_file' .phantom/state.json)
+  CURRENT_PHASE=$(jq -r '.current_phase' .phantom/state.json)
 
-log_phase "Phantom AutoDev 启动"
-log_info "需求文档: $REQ_FILE"
-log_info "项目目录: $PROJECT_DIR"
+  log_phase "Phantom AutoDev 恢复运行"
+  log_info "项目目录: $PROJECT_DIR"
+  log_info "需求文档: $REQ_FILE"
+  log_info "当前阶段: $CURRENT_PHASE"
 
-check_dependencies
+  check_dependencies
 
-# 切换到项目目录
-cd "$PROJECT_DIR"
-
-# 初始化 git（如果没有的话）
-if [[ ! -d .git ]]; then
-  git init
-  log_ok "Git 仓库已初始化"
-fi
-
-# 初始化或恢复状态
-if [[ "$RESUME" == true ]] && state_exists; then
-  log_info "从上次中断处继续..."
 else
+  # ── 新项目模式 ──────────────────────────────────────────
+
+  if [[ -z "$REQ_INPUT" ]]; then
+    log_error "请提供需求文档路径或需求文本"
+    usage
+    exit 1
+  fi
+
+  # 判断是文件路径还是纯文本需求
+  if [[ -f "$REQ_INPUT" ]]; then
+    REQ_FILE="$(cd "$(dirname "$REQ_INPUT")" && pwd)/$(basename "$REQ_INPUT")"
+  else
+    REQ_TEXT="$REQ_INPUT"
+    REQ_FILE="$(mktemp "${TMPDIR:-/tmp}/phantom-req-XXXXXX.md")"
+    echo "$REQ_TEXT" > "$REQ_FILE"
+    log_info "需求文本已写入临时文件: $REQ_FILE"
+  fi
+
+  # 如果未指定项目目录，自动生成目录名
+  if [[ -z "$PROJECT_DIR" ]]; then
+    AUTO_NAME=$(claude -p --dangerously-skip-permissions \
+      "Read this file: $REQ_FILE. Based on its content, output ONLY a short kebab-case project directory name (e.g. todo-api, user-auth-service, blog-platform). No explanation, no quotes, just the name." \
+      2>/dev/null | tr -d '[:space:]' | head -c 50)
+
+    if [[ -z "$AUTO_NAME" ]] || [[ ! "$AUTO_NAME" =~ ^[a-z0-9][a-z0-9-]*$ ]]; then
+      AUTO_NAME="project-$(date +%Y%m%d-%H%M%S)"
+    fi
+
+    PROJECT_DIR="$SCRIPT_DIR/projects/$AUTO_NAME"
+    log_info "自动生成项目目录: $PROJECT_DIR"
+  fi
+
+  mkdir -p "$PROJECT_DIR"
+  PROJECT_DIR="$(cd "$PROJECT_DIR" && pwd)"
+
+  log_phase "Phantom AutoDev 启动"
+  log_info "需求文档: $REQ_FILE"
+  log_info "项目目录: $PROJECT_DIR"
+
+  check_dependencies
+
+  cd "$PROJECT_DIR"
+
+  # 初始化 git
+  if [[ ! -d .git ]]; then
+    git init
+    log_ok "Git 仓库已初始化"
+  fi
+
   init_state "$REQ_FILE" "$PROJECT_DIR"
   log_ok "状态已初始化"
 fi
