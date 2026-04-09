@@ -7,7 +7,7 @@ source "$SCRIPT_DIR/lib/utils.sh"
 source "$SCRIPT_DIR/lib/state.sh"
 source "$SCRIPT_DIR/lib/loop.sh"
 
-# 阶段 1：规划
+# 阶段 1：规划（启动新会话，后续阶段接续此会话）
 run_plan_phase() {
   local work_dir="$1"
   log_phase "阶段 1/4: 需求分析与计划制定"
@@ -17,10 +17,7 @@ run_plan_phase() {
   local prompt_file
   prompt_file=$(render_prompt "$SCRIPT_DIR/prompts/plan.md" "$work_dir")
 
-  claude -p \
-    --dangerously-skip-permissions \
-    "$(cat "$prompt_file")" \
-    2>&1 | tee "$LOG_DIR/phase-plan-1.log"
+  claude_call_new "$(cat "$prompt_file")" "$LOG_DIR/phase-plan-1.log"
 
   rm -f "$prompt_file"
 
@@ -32,10 +29,7 @@ run_plan_phase() {
   else
     log_error "计划文件未生成，重试..."
     prompt_file=$(render_prompt "$SCRIPT_DIR/prompts/plan.md" "$work_dir")
-    claude -p \
-      --dangerously-skip-permissions \
-      "$(cat "$prompt_file")" \
-      2>&1 | tee "$LOG_DIR/phase-plan-2.log"
+    claude_call_resume "$(cat "$prompt_file")" "$LOG_DIR/phase-plan-2.log"
     rm -f "$prompt_file"
     if [[ -f ".phantom/plan.md" ]]; then
       log_ok "计划已生成: .phantom/plan.md"
@@ -48,7 +42,7 @@ run_plan_phase() {
   fi
 }
 
-# 阶段 2：开发（Ralph-loop，最少10次验证，最多50次）
+# 阶段 2：开发（Ralph-loop，最少10次验证，最多50次，接续会话）
 run_dev_phase() {
   local work_dir="$1"
   log_phase "阶段 2/4: 代码开发"
@@ -61,7 +55,7 @@ run_dev_phase() {
   advance_phase
 }
 
-# 阶段 3：测试（Ralph-loop，最少2次验证，最多5次）
+# 阶段 3：测试（Ralph-loop，最少2次验证，最多5次，接续会话）
 run_test_phase() {
   local work_dir="$1"
   log_phase "阶段 3/4: 测试验证"
@@ -74,7 +68,7 @@ run_test_phase() {
   advance_phase
 }
 
-# 阶段 4：Docker 部署
+# 阶段 4：Docker 部署（接续会话）
 run_deploy_phase() {
   local work_dir="$1"
   log_phase "阶段 4/4: Docker 构建与部署验证"
@@ -89,10 +83,7 @@ run_deploy_phase() {
     local prompt_file
     prompt_file=$(render_prompt "$SCRIPT_DIR/prompts/deploy.md" "$work_dir")
 
-    claude -p \
-      --dangerously-skip-permissions \
-      "$(cat "$prompt_file")" \
-      2>&1 | tee "$LOG_DIR/phase-deploy-${attempt}.log"
+    claude_call_resume "$(cat "$prompt_file")" "$LOG_DIR/phase-deploy-${attempt}.log"
 
     rm -f "$prompt_file"
 
