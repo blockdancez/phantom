@@ -23,7 +23,7 @@ Phantom AutoDev - 全自主需求开发程序
 
 参数:
   需求文档路径    必须，指向需求文档的路径（.md / .txt）
-  项目目录        可选，代码生成的目标目录（默认: ./project）
+  项目目录        可选，代码生成的目标目录（默认: ./projects/<自动命名>）
 
 选项:
   -h, --help      显示帮助
@@ -69,7 +69,22 @@ if [[ ! -f "$REQ_FILE" ]]; then
   exit 1
 fi
 
-PROJECT_DIR="${PROJECT_DIR:-./project}"
+# 如果未指定项目目录，自动生成目录名
+if [[ -z "$PROJECT_DIR" ]]; then
+  # 用 Claude 从需求文档提取一个简短的英文项目名
+  AUTO_NAME=$(claude -p --dangerously-skip-permissions \
+    "Read this file: $REQ_FILE. Based on its content, output ONLY a short kebab-case project directory name (e.g. todo-api, user-auth-service, blog-platform). No explanation, no quotes, just the name." \
+    2>/dev/null | tr -d '[:space:]' | head -c 50)
+
+  # 回退：如果 Claude 没返回有效名字，用时间戳
+  if [[ -z "$AUTO_NAME" ]] || [[ ! "$AUTO_NAME" =~ ^[a-z0-9][a-z0-9-]*$ ]]; then
+    AUTO_NAME="project-$(date +%Y%m%d-%H%M%S)"
+  fi
+
+  PROJECT_DIR="./projects/$AUTO_NAME"
+  log_info "自动生成项目目录: $PROJECT_DIR"
+fi
+
 mkdir -p "$PROJECT_DIR"
 PROJECT_DIR="$(cd "$PROJECT_DIR" && pwd)"
 
