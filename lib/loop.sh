@@ -14,22 +14,42 @@ render_prompt() {
   local output_file
   output_file=$(mktemp)
 
-  local req_file
-  req_file=$(get_state '.requirements_file')
+  local state_req_file
+  state_req_file=$(get_state '.requirements_file')
   local requirements=""
-  [[ -f "$req_file" ]] && requirements=$(cat "$req_file")
+  [[ -f "$state_req_file" ]] && requirements=$(cat "$state_req_file")
 
   local plan=""
   [[ -f ".phantom/plan.md" ]] && plan=$(cat ".phantom/plan.md")
 
-  # 使用 awk 进行安全的多行替换
-  awk -v req="$requirements" -v plan="$plan" -v dir="$work_dir" '
-  {
-    gsub(/\{\{REQUIREMENTS\}\}/, req)
-    gsub(/\{\{PLAN\}\}/, plan)
-    gsub(/\{\{PROJECT_DIR\}\}/, dir)
-    print
-  }' "$template_file" > "$output_file"
+  # 使用 python3 进行安全的多行替换（awk -v 无法处理含换行符的变量）
+  local req_tmp plan_tmp
+  req_tmp=$(mktemp)
+  plan_tmp=$(mktemp)
+  printf '%s' "$requirements" > "$req_tmp"
+  printf '%s' "$plan" > "$plan_tmp"
+
+  python3 - "$template_file" "$req_tmp" "$plan_tmp" "$work_dir" "$output_file" <<'PYEOF'
+import sys
+
+template_path, req_path, plan_path, work_dir, out_path = sys.argv[1:]
+
+with open(template_path, 'r') as f:
+    content = f.read()
+with open(req_path, 'r') as f:
+    requirements = f.read()
+with open(plan_path, 'r') as f:
+    plan = f.read()
+
+content = content.replace('{{REQUIREMENTS}}', requirements)
+content = content.replace('{{PLAN}}', plan)
+content = content.replace('{{PROJECT_DIR}}', work_dir)
+
+with open(out_path, 'w') as f:
+    f.write(content)
+PYEOF
+
+  rm -f "$req_tmp" "$plan_tmp"
 
   echo "$output_file"
 }
