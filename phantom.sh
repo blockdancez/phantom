@@ -36,10 +36,13 @@ Phantom AutoDev - 全自主需求开发程序
   ./phantom.sh docs/spec.md ./my-project
   ./phantom.sh --resume
   ./phantom.sh --resume todo-api
+  ./phantom.sh --delete
+  ./phantom.sh --delete todo-api
 EOF
 }
 
 RESUME=false
+DELETE=false
 REQ_INPUT=""
 PROJECT_DIR=""
 
@@ -47,9 +50,9 @@ while [[ $# -gt 0 ]]; do
   case "$1" in
     -h|--help) usage; exit 0 ;;
     --resume) RESUME=true; shift ;;
+    --delete) DELETE=true; shift ;;
     *)
-      if [[ "$RESUME" == true ]] && [[ -z "$PROJECT_DIR" ]]; then
-        # --resume 模式下，参数当作项目目录
+      if [[ "$RESUME" == true || "$DELETE" == true ]] && [[ -z "$PROJECT_DIR" ]]; then
         PROJECT_DIR="$1"
       elif [[ -z "$REQ_INPUT" ]]; then
         REQ_INPUT="$1"
@@ -60,6 +63,70 @@ while [[ $# -gt 0 ]]; do
       ;;
   esac
 done
+
+# ── Delete 模式 ──────────────────────────────────────────
+
+if [[ "$DELETE" == true ]]; then
+  if [[ -z "$PROJECT_DIR" ]]; then
+    # 列出所有项目让用户选择
+    PROJECTS=()
+    for dir in "$SCRIPT_DIR/projects"/*/; do
+      [[ -d "$dir" ]] || continue
+      proj_name="$(basename "$dir")"
+      phase="—"
+      if [[ -f "$dir/.phantom/state.json" ]]; then
+        phase=$(jq -r '.current_phase' "$dir/.phantom/state.json" 2>/dev/null)
+      fi
+      PROJECTS+=("$dir|$proj_name|$phase")
+    done
+
+    if [[ ${#PROJECTS[@]} -eq 0 ]]; then
+      log_error "没有项目可删除"
+      exit 1
+    fi
+
+    echo ""
+    log_info "项目列表："
+    echo ""
+    for i in "${!PROJECTS[@]}"; do
+      IFS='|' read -r dir name phase <<< "${PROJECTS[$i]}"
+      printf "  ${CYAN}[%d]${NC} %-30s (阶段: %s)\n" "$((i + 1))" "$name" "$phase"
+    done
+    echo ""
+    printf "请选择要删除的项目编号（输入 0 取消）: "
+    read -r CHOICE
+
+    if [[ "$CHOICE" == "0" ]]; then
+      log_info "已取消"
+      exit 0
+    fi
+
+    if [[ ! "$CHOICE" =~ ^[0-9]+$ ]] || [[ "$CHOICE" -lt 1 ]] || [[ "$CHOICE" -gt ${#PROJECTS[@]} ]]; then
+      log_error "无效的选择"
+      exit 1
+    fi
+
+    IFS='|' read -r DEL_DIR DEL_NAME _ <<< "${PROJECTS[$((CHOICE - 1))]}"
+  else
+    # 指定了项目名
+    DEL_NAME="$PROJECT_DIR"
+    DEL_DIR="$SCRIPT_DIR/projects/$DEL_NAME"
+    if [[ ! -d "$DEL_DIR" ]]; then
+      log_error "项目不存在: $DEL_NAME"
+      exit 1
+    fi
+  fi
+
+  printf "确认删除项目 ${RED}$DEL_NAME${NC}？(y/N): "
+  read -r CONFIRM
+  if [[ "$CONFIRM" == "y" || "$CONFIRM" == "Y" ]]; then
+    rm -rf "$DEL_DIR"
+    log_ok "已删除项目: $DEL_NAME"
+  else
+    log_info "已取消"
+  fi
+  exit 0
+fi
 
 # ── Resume 模式 ──────────────────────────────────────────
 
