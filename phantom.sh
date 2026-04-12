@@ -210,7 +210,7 @@ else
     REQ_FILE="$(cd "$(dirname "$REQ_INPUT")" && pwd)/$(basename "$REQ_INPUT")"
   else
     REQ_TEXT="$REQ_INPUT"
-    REQ_FILE="$(mktemp "${TMPDIR:-/tmp}/phantom-req-XXXXXX.md")"
+    REQ_FILE="$(mktemp "${TMPDIR:-/tmp}/phantom-req-XXXXXX")"
     echo "$REQ_TEXT" > "$REQ_FILE"
     log_info "需求文本已写入临时文件: $REQ_FILE"
   fi
