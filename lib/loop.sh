@@ -82,13 +82,16 @@ _claude_new_plan() {
   local prompt="$1"
   local log_file="$2"
 
+  local plan_prompt="请使用 /superpowers:writing-plans 技能来制定实施计划。以下是需求内容：
+
+$prompt"
+
   claude -p \
     --dangerously-skip-permissions \
-    --permission-mode plan \
     --output-format stream-json \
     --verbose \
     --include-partial-messages \
-    "$prompt" \
+    "$plan_prompt" \
     2>&1 | python3 "$STREAM_PARSER" "$log_file"
 }
 
