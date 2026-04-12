@@ -277,13 +277,17 @@ run_all_phases() {
         log_info "状态摘要:"
         jq '.phases' "$STATE_FILE"
 
-        # 创建一个交互模式会话，让用户可以用 claude -c 接续
-        log_info "正在创建交互式会话，完成后可使用 claude -c 继续..."
-        claude -p --dangerously-skip-permissions \
-          "这个项目已由 Phantom AutoDev 自动构建完成。请阅读项目文件，了解项目结构和功能。用户接下来可能会要求你修改、扩展或调试这个项目。准备好后简要总结一下项目的技术栈和核心功能。" \
-          2>/dev/null || true
-
-        log_ok "可以使用 cd $PROJECT_DIR && claude -c 继续开发"
+        # 初始化 Claude 项目配置，生成 CLAUDE.md
+        local b=$(get_backend)
+        if [[ "$b" == "claude" ]]; then
+          log_info "正在执行 claude init 生成项目配置..."
+          claude -p --dangerously-skip-permissions \
+            "请为这个项目执行 /init，生成 CLAUDE.md 文件，描述项目结构、技术栈和开发规范。" \
+            2>/dev/null || true
+          log_ok "可以使用 cd $PROJECT_DIR && claude 继续开发"
+        else
+          log_ok "项目已就绪: $PROJECT_DIR"
+        fi
         return 0
         ;;
       *)
