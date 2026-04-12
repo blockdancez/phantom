@@ -53,7 +53,10 @@ module.exports = defineConfig({
   use: {
     baseURL: `http://localhost:${port}`,
     headless: true,
+    screenshot: 'only-on-failure',
+    trace: 'on-first-retry',
   },
+  retries: 1,
 });
 ```
 
@@ -64,9 +67,23 @@ module.exports = defineConfig({
 - 数据展示正确（列表渲染、详情页内容）
 - 错误状态处理（空数据、无效输入）
 
-示例测试结构：
+示例测试结构（注意：必须捕获浏览器控制台和网络错误）：
 ```javascript
 const { test, expect } = require('@playwright/test');
+
+test.beforeEach(async ({ page }) => {
+  // 捕获浏览器控制台日志
+  page.on('console', msg => {
+    if (msg.type() === 'error') console.log('[browser error]', msg.text());
+  });
+  page.on('pageerror', err => console.log('[page error]', err.message));
+  // 捕获失败的网络请求
+  page.on('response', response => {
+    if (!response.ok()) {
+      console.log('[network error]', response.status(), response.url());
+    }
+  });
+});
 
 test('页面正常加载', async ({ page }) => {
   await page.goto('/');
