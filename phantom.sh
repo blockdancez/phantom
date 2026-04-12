@@ -264,11 +264,8 @@ run_all_phases() {
       plan)
         run_plan_phase "$PROJECT_DIR"
         ;;
-      dev)
-        run_dev_phase "$PROJECT_DIR"
-        ;;
-      test)
-        run_test_phase "$PROJECT_DIR"
+      devtest)
+        run_devtest_phase "$PROJECT_DIR"
         ;;
       deploy)
         run_deploy_phase "$PROJECT_DIR"

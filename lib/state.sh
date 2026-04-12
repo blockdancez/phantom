@@ -15,10 +15,9 @@ init_state() {
   "project_dir": "$project_dir",
   "current_phase": "plan",
   "phases": {
-    "plan":   { "status": "pending", "iteration": 0 },
-    "dev":    { "status": "pending", "iteration": 0 },
-    "test":   { "status": "pending", "iteration": 0 },
-    "deploy": { "status": "pending", "iteration": 0 }
+    "plan":    { "status": "pending", "iteration": 0 },
+    "devtest": { "status": "pending", "iteration": 0 },
+    "deploy":  { "status": "pending", "iteration": 0 }
   },
   "started_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 }
@@ -60,10 +59,9 @@ advance_phase() {
   local current next
   current=$(get_state '.current_phase')
   case "$current" in
-    plan)   next="dev" ;;
-    dev)    next="test" ;;
-    test)   next="deploy" ;;
-    deploy) next="done" ;;
+    plan)    next="devtest" ;;
+    devtest) next="deploy" ;;
+    deploy)  next="done" ;;
   esac
   set_phase_status "$current" "completed"
   set_state '.current_phase' "\"$next\""
