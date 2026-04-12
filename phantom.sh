@@ -225,8 +225,12 @@ else
     fi
 
     if [[ -z "$AUTO_NAME" ]] || [[ ! "$AUTO_NAME" =~ ^[a-z0-9][a-z0-9-]*$ ]]; then
-      AUTO_NAME="project-$(date +%Y%m%d-%H%M%S)"
+      AUTO_NAME="project"
     fi
+
+    # 加 4 位随机后缀避免同名冲突
+    RAND_SUFFIX=$(LC_ALL=C tr -dc 'a-z0-9' < /dev/urandom | head -c 4)
+    AUTO_NAME="${AUTO_NAME}-${RAND_SUFFIX}"
 
     PROJECT_DIR="$SCRIPT_DIR/projects/$AUTO_NAME"
     log_info "自动生成项目目录: $PROJECT_DIR"
