@@ -277,16 +277,20 @@ run_all_phases() {
         log_info "状态摘要:"
         jq '.phases' "$STATE_FILE"
 
-        # 初始化 Claude 项目配置，生成 CLAUDE.md
+        # 初始化项目配置文件
         local b=$(get_backend)
         if [[ "$b" == "claude" ]]; then
-          log_info "正在执行 claude init 生成项目配置..."
+          log_info "正在执行 claude /init 生成 CLAUDE.md..."
           claude -p --dangerously-skip-permissions \
             "请为这个项目执行 /init，生成 CLAUDE.md 文件，描述项目结构、技术栈和开发规范。" \
             2>/dev/null || true
           log_ok "可以使用 cd $PROJECT_DIR && claude 继续开发"
-        else
-          log_ok "项目已就绪: $PROJECT_DIR"
+        elif [[ "$b" == "codex" ]]; then
+          log_info "正在生成 AGENTS.md..."
+          codex exec --dangerously-bypass-approvals-and-sandbox \
+            "分析当前项目的所有文件，生成一个 AGENTS.md 文件，描述项目结构、技术栈、开发规范和关键文件说明。" \
+            2>/dev/null || true
+          log_ok "可以使用 cd $PROJECT_DIR && codex 继续开发"
         fi
         return 0
         ;;
