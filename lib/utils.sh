@@ -18,7 +18,21 @@ log_phase() { echo -e "\n${CYAN}========== $* ==========${NC}\n"; }
 # 检查依赖
 check_dependencies() {
   local missing=()
-  for cmd in claude jq docker; do
+
+  # AI 后端：至少有一个即可
+  local backend="${PHANTOM_BACKEND:-}"
+  if [[ "$backend" == "claude" ]]; then
+    command -v claude &>/dev/null || missing+=("claude")
+  elif [[ "$backend" == "codex" ]]; then
+    command -v codex &>/dev/null || missing+=("codex")
+  else
+    # 自动检测：至少有一个
+    if ! command -v claude &>/dev/null && ! command -v codex &>/dev/null; then
+      missing+=("claude 或 codex")
+    fi
+  fi
+
+  for cmd in jq docker python3; do
     if ! command -v "$cmd" &>/dev/null; then
       missing+=("$cmd")
     fi

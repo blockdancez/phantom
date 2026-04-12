@@ -27,16 +27,18 @@ Phantom AutoDev - 全自主需求开发程序
   项目目录        可选，代码生成的目标目录（默认: ./projects/<自动命名>）
 
 选项:
-  -h, --help      显示帮助
-  --resume [项目名]  从上次中断的阶段继续（从 state.json 恢复）
+  -h, --help              显示帮助
+  --backend <claude|codex> AI 后端（默认自动检测）
+  --resume [项目名]        从上次中断的阶段继续
+  --delete [项目名]        删除项目
 
 示例:
   ./phantom.sh requirements.md
   ./phantom.sh "构建一个Todo API，使用Node.js + Express，端口3000"
   ./phantom.sh docs/spec.md ./my-project
+  ./phantom.sh --backend codex requirements.md
   ./phantom.sh --resume
   ./phantom.sh --resume todo-api
-  ./phantom.sh --delete
   ./phantom.sh --delete todo-api
 EOF
 }
@@ -51,6 +53,7 @@ while [[ $# -gt 0 ]]; do
     -h|--help) usage; exit 0 ;;
     --resume) RESUME=true; shift ;;
     --delete) DELETE=true; shift ;;
+    --backend) export PHANTOM_BACKEND="$2"; shift 2 ;;
     *)
       if [[ "$RESUME" == true || "$DELETE" == true ]] && [[ -z "$PROJECT_DIR" ]]; then
         PROJECT_DIR="$1"

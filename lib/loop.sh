@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
-# lib/loop.sh - Ralph-loop 循环引擎
+# lib/loop.sh - 循环引擎 + AI 后端抽象层
 #
-# 核心原理：在同一个 Claude 会话中反复验证。
-# 第一次调用启动新会话，后续用 -c 接续上一次会话。
-# Claude 会自动压缩上下文，保持连续性。
+# 支持多种 AI CLI 后端（Claude Code / Codex）
+# 通过环境变量 PHANTOM_BACKEND 切换，默认自动检测
 
 source "$(dirname "${BASH_SOURCE[0]}")/utils.sh"
 source "$(dirname "${BASH_SOURCE[0]}")/state.sh"
 
-# 将模板中的占位符替换为实际内容，写入临时文件
+# ── 模板渲染 ─────────────────────────────────────────────
+
 render_prompt() {
   local template_file="$1"
   local work_dir="$2"
@@ -54,10 +54,31 @@ PYEOF
   echo "$output_file"
 }
 
+# ── AI 后端抽象层 ────────────────────────────────────────
+
 STREAM_PARSER="$(dirname "${BASH_SOURCE[0]}")/stream-parser.py"
 
-# 调用 Claude（新会话）— 流式输出到控制台，结果保存到日志文件
-claude_new() {
+# 自动检测后端（如果未设置 PHANTOM_BACKEND）
+detect_backend() {
+  if [[ -n "$PHANTOM_BACKEND" ]]; then
+    echo "$PHANTOM_BACKEND"
+    return
+  fi
+  if command -v claude &>/dev/null; then
+    echo "claude"
+  elif command -v codex &>/dev/null; then
+    echo "codex"
+  else
+    log_error "未找到 claude 或 codex CLI"
+    exit 1
+  fi
+}
+
+BACKEND=$(detect_backend)
+
+# ── Claude Code 后端 ─────────────────────────────────────
+
+_claude_new() {
   local prompt="$1"
   local log_file="$2"
 
@@ -70,8 +91,7 @@ claude_new() {
     2>&1 | python3 "$STREAM_PARSER" "$log_file"
 }
 
-# 调用 Claude（新会话，plan 模式）— Claude 先规划再执行
-claude_new_plan() {
+_claude_new_plan() {
   local prompt="$1"
   local log_file="$2"
 
@@ -85,8 +105,7 @@ claude_new_plan() {
     2>&1 | python3 "$STREAM_PARSER" "$log_file"
 }
 
-# 调用 Claude（接续上一次会话）
-claude_continue() {
+_claude_continue() {
   local prompt="$1"
   local log_file="$2"
 
@@ -99,8 +118,78 @@ claude_continue() {
     2>&1 | python3 "$STREAM_PARSER" "$log_file"
 }
 
-# 运行带实际验证的 Claude 循环
-# 参数: phase, main_prompt, verify_prompt, max_checks, work_dir
+# ── Codex 后端 ───────────────────────────────────────────
+
+_codex_new() {
+  local prompt="$1"
+  local log_file="$2"
+
+  codex exec \
+    --dangerously-bypass-approvals-and-sandbox \
+    --json \
+    -o "$log_file" \
+    "$prompt" \
+    2>&1 | python3 "$STREAM_PARSER" "$log_file" codex
+}
+
+_codex_new_plan() {
+  # Codex 没有 plan 模式，在提示词前加规划指令
+  local prompt="$1"
+  local log_file="$2"
+  local plan_prompt="Please first create a detailed plan, then execute it step by step.
+
+$prompt"
+
+  codex exec \
+    --dangerously-bypass-approvals-and-sandbox \
+    --json \
+    -o "$log_file" \
+    "$plan_prompt" \
+    2>&1 | python3 "$STREAM_PARSER" "$log_file" codex
+}
+
+_codex_continue() {
+  local prompt="$1"
+  local log_file="$2"
+
+  codex exec resume --last \
+    --dangerously-bypass-approvals-and-sandbox \
+    --json \
+    -o "$log_file" \
+    "$prompt" \
+    2>&1 | python3 "$STREAM_PARSER" "$log_file" codex
+}
+
+# ── 统一接口 ─────────────────────────────────────────────
+
+ai_new() {
+  log_info "后端: $BACKEND"
+  case "$BACKEND" in
+    claude) _claude_new "$@" ;;
+    codex)  _codex_new "$@" ;;
+    *) log_error "不支持的后端: $BACKEND"; exit 1 ;;
+  esac
+}
+
+ai_new_plan() {
+  log_info "后端: $BACKEND (plan 模式)"
+  case "$BACKEND" in
+    claude) _claude_new_plan "$@" ;;
+    codex)  _codex_new_plan "$@" ;;
+    *) log_error "不支持的后端: $BACKEND"; exit 1 ;;
+  esac
+}
+
+ai_continue() {
+  case "$BACKEND" in
+    claude) _claude_continue "$@" ;;
+    codex)  _codex_continue "$@" ;;
+    *) log_error "不支持的后端: $BACKEND"; exit 1 ;;
+  esac
+}
+
+# ── 循环引擎 ─────────────────────────────────────────────
+
 run_loop() {
   local phase="$1"
   local main_prompt_file="$2"
@@ -121,32 +210,29 @@ run_loop() {
     local log_file="$LOG_DIR/phase-${phase}-${iteration}.log"
 
     if [[ $iteration -eq 1 ]]; then
-      # 第一轮：执行主任务
       log_info "[$phase] 第 $iteration 轮 - 执行开发任务..."
 
       local prompt_file
       prompt_file=$(render_prompt "$main_prompt_file" "$work_dir")
 
-      claude_continue "$(cat "$prompt_file")" "$log_file"
+      ai_continue "$(cat "$prompt_file")" "$log_file"
 
       rm -f "$prompt_file"
     else
-      # 后续轮次：运行验证，发现问题就修复
       log_info "[$phase] 第 $iteration 轮 - 运行验证..."
 
       local verify_file
       verify_file=$(render_prompt "$verify_prompt_file" "$work_dir")
 
-      claude_continue "$(cat "$verify_file")" "$log_file"
+      ai_continue "$(cat "$verify_file")" "$log_file"
 
       rm -f "$verify_file"
 
-      # 检查验证结果：通过即放行
       if grep -q "PHASE_COMPLETE" "$log_file"; then
         log_ok "[$phase] 验证通过，阶段完成!"
         return 0
       else
-        log_warn "[$phase] 验证发现问题，Claude 已修复，将再次验证..."
+        log_warn "[$phase] 验证发现问题，已修复，将再次验证..."
       fi
     fi
   done

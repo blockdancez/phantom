@@ -12,12 +12,12 @@ run_plan_phase() {
   local work_dir="$1"
   log_phase "阶段 1/4: 需求分析与计划制定 (Plan 模式)"
 
-  log_info "正在使用 Claude Plan 模式分析需求并制定计划..."
+  log_info "正在使用 Plan 模式分析需求并制定计划..."
 
   local prompt_file
   prompt_file=$(render_prompt "$SCRIPT_DIR/prompts/plan.md" "$work_dir")
 
-  claude_new_plan "$(cat "$prompt_file")" "$LOG_DIR/phase-plan-1.log"
+  ai_new_plan "$(cat "$prompt_file")" "$LOG_DIR/phase-plan-1.log"
 
   rm -f "$prompt_file"
 
@@ -29,7 +29,7 @@ run_plan_phase() {
   else
     log_error "计划文件未生成，重试..."
     prompt_file=$(render_prompt "$SCRIPT_DIR/prompts/plan.md" "$work_dir")
-    claude_new_plan "$(cat "$prompt_file")" "$LOG_DIR/phase-plan-2.log"
+    ai_new_plan "$(cat "$prompt_file")" "$LOG_DIR/phase-plan-2.log"
     rm -f "$prompt_file"
     if [[ -f ".phantom/plan.md" ]]; then
       log_ok "计划已生成: .phantom/plan.md"
@@ -83,7 +83,7 @@ run_deploy_phase() {
     local prompt_file
     prompt_file=$(render_prompt "$SCRIPT_DIR/prompts/deploy.md" "$work_dir")
 
-    claude_continue "$(cat "$prompt_file")" "$LOG_DIR/phase-deploy-${attempt}.log"
+    ai_continue "$(cat "$prompt_file")" "$LOG_DIR/phase-deploy-${attempt}.log"
 
     rm -f "$prompt_file"
 
