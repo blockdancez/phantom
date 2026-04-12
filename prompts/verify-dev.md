@@ -22,23 +22,31 @@ grep -rn "TODO\|FIXME\|XXX\|HACK\|PLACEHOLDER\|NotImplemented" --include="*.py" 
 
 ## 第三步：安装依赖并运行
 
+先分配一个空闲端口，避免与其他项目冲突：
+```bash
+# 找空闲端口并保存
+python3 -c "import socket; s=socket.socket(); s.bind(('',0)); print(s.getsockname()[1]); s.close()" > .phantom/port
+PORT=$(cat .phantom/port)
+```
+
+然后启动项目：
 ```bash
 # 根据项目类型执行（选择适用的）
-# Node.js: npm install && npm start
-# Python: pip install -r requirements.txt && python app.py
-# Go: go run .
+# Node.js: PORT=$PORT npm start
+# Python: PORT=$PORT python app.py
+# Go: PORT=$PORT go run .
 ```
 
 - 如果安装失败 → 修复依赖配置
 - 如果启动失败 → 修复代码错误
-- 如果启动成功 → 记录端口号，继续下一步
+- 如果启动成功 → 继续下一步
 
 ## 第四步：功能验证（仅限 API/Web 项目）
 
-启动服务后，用 curl 验证每个端点：
+启动服务后，用 curl 验证每个端点（使用 .phantom/port 中的端口）：
 ```bash
-# 示例（根据实际 API 调整）
-curl -s http://localhost:PORT/endpoint | head -20
+PORT=$(cat .phantom/port)
+curl -s http://localhost:$PORT/endpoint | head -20
 ```
 
 逐个端点测试，记录：
