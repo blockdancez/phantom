@@ -36,21 +36,28 @@ npm install -D @playwright/test
 npx playwright install chromium
 ```
 
-#### Step 2: 创建 Playwright 配置
-创建 `playwright.config.js`（如果不存在）：
+#### Step 2: 确认项目端口
+读取 `.phantom/port` 文件获取项目端口号。如果文件不存在，从项目代码中查找实际监听端口。
+
+#### Step 3: 创建 Playwright 配置
+创建 `playwright.config.js`（如果不存在），使用实际端口：
 ```javascript
+const fs = require('fs');
 const { defineConfig } = require('@playwright/test');
+const port = fs.existsSync('.phantom/port')
+  ? fs.readFileSync('.phantom/port', 'utf8').trim()
+  : '3000';
 module.exports = defineConfig({
   testDir: './tests/e2e',
   timeout: 30000,
   use: {
-    baseURL: 'http://localhost:PORT',  // 替换为实际端口
+    baseURL: `http://localhost:${port}`,
     headless: true,
   },
 });
 ```
 
-#### Step 3: 编写 E2E 测试
+#### Step 4: 编写 E2E 测试
 在 `tests/e2e/` 目录下创建测试文件，覆盖：
 - 页面能正常加载（标题、关键元素存在）
 - 核心用户操作流程（表单提交、按钮点击、导航跳转）
@@ -72,10 +79,13 @@ test('核心功能流程', async ({ page }) => {
 });
 ```
 
-#### Step 4: 启动服务并运行测试
+#### Step 5: 启动服务并运行测试
 ```bash
+# 读取端口
+PORT=$(cat .phantom/port 2>/dev/null || echo "3000")
+
 # 后台启动服务
-npm start &
+PORT=$PORT npm start &
 SERVER_PID=$!
 sleep 3
 
@@ -83,7 +93,7 @@ sleep 3
 npx playwright test
 
 # 关闭服务
-kill $SERVER_PID
+kill $SERVER_PID 2>/dev/null
 ```
 
 ### 3. 测试失败处理
