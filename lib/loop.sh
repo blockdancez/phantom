@@ -58,19 +58,12 @@ PYEOF
 
 STREAM_PARSER="$(dirname "${BASH_SOURCE[0]}")/stream-parser.py"
 
-# 自动检测后端（如果未设置 PHANTOM_BACKEND）
+# 检测后端（默认 claude）
 detect_backend() {
   if [[ -n "$PHANTOM_BACKEND" ]]; then
     echo "$PHANTOM_BACKEND"
-    return
-  fi
-  if command -v claude &>/dev/null; then
-    echo "claude"
-  elif command -v codex &>/dev/null; then
-    echo "codex"
   else
-    log_error "未找到 claude 或 codex CLI"
-    exit 1
+    echo "claude"
   fi
 }
 

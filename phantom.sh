@@ -28,15 +28,16 @@ Phantom AutoDev - 全自主需求开发程序
 
 选项:
   -h, --help              显示帮助
-  --backend <claude|codex> AI 后端（默认自动检测）
   --resume [项目名]        从上次中断的阶段继续
   --delete [项目名]        删除项目
 
+  第一个参数如果是 claude 或 codex，则指定 AI 后端（默认 claude）
+
 示例:
   ./phantom.sh requirements.md
+  ./phantom.sh claude requirements.md
+  ./phantom.sh codex requirements.md
   ./phantom.sh "构建一个Todo API，使用Node.js + Express，端口3000"
-  ./phantom.sh docs/spec.md ./my-project
-  ./phantom.sh --backend codex requirements.md
   ./phantom.sh --resume
   ./phantom.sh --resume todo-api
   ./phantom.sh --delete todo-api
@@ -53,7 +54,8 @@ while [[ $# -gt 0 ]]; do
     -h|--help) usage; exit 0 ;;
     --resume) RESUME=true; shift ;;
     --delete) DELETE=true; shift ;;
-    --backend) export PHANTOM_BACKEND="$2"; shift 2 ;;
+    claude|codex)
+      export PHANTOM_BACKEND="$1"; shift ;;
     *)
       if [[ "$RESUME" == true || "$DELETE" == true ]] && [[ -z "$PROJECT_DIR" ]]; then
         PROJECT_DIR="$1"
