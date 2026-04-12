@@ -218,10 +218,11 @@ else
   # 如果未指定项目目录，自动生成目录名
   if [[ -z "$PROJECT_DIR" ]]; then
     NAME_PROMPT="Read this file: $REQ_FILE. Based on its content, output ONLY a short kebab-case project directory name (e.g. todo-api, user-auth-service, blog-platform). No explanation, no quotes, just the name."
+    AUTO_NAME=""
     if [[ "${PHANTOM_BACKEND:-claude}" == "codex" ]]; then
-      AUTO_NAME=$(codex exec --dangerously-bypass-approvals-and-sandbox "$NAME_PROMPT" 2>/dev/null | tr -d '[:space:]' | head -c 50)
+      AUTO_NAME=$(codex exec --dangerously-bypass-approvals-and-sandbox "$NAME_PROMPT" 2>/dev/null | tr -d '[:space:]' | head -c 50) || true
     else
-      AUTO_NAME=$(claude -p --dangerously-skip-permissions "$NAME_PROMPT" 2>/dev/null | tr -d '[:space:]' | head -c 50)
+      AUTO_NAME=$(claude -p --dangerously-skip-permissions "$NAME_PROMPT" 2>/dev/null | tr -d '[:space:]' | head -c 50) || true
     fi
 
     if [[ -z "$AUTO_NAME" ]] || [[ ! "$AUTO_NAME" =~ ^[a-z0-9][a-z0-9-]*$ ]]; then
@@ -229,7 +230,7 @@ else
     fi
 
     # 加 4 位随机后缀避免同名冲突
-    RAND_SUFFIX=$(LC_ALL=C tr -dc 'a-z0-9' < /dev/urandom | head -c 4)
+    RAND_SUFFIX=$(python3 -c "import random,string; print(''.join(random.choices(string.ascii_lowercase+string.digits,k=4)))")
     AUTO_NAME="${AUTO_NAME}-${RAND_SUFFIX}"
 
     PROJECT_DIR="$SCRIPT_DIR/projects/$AUTO_NAME"
