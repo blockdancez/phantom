@@ -26,8 +26,8 @@
 
 **如果项目包含前端页面（HTML/React/Vue/Web），必须使用 design-guide skill：**
 
-1. 读取 skill 主文件：`~/.agents/skills/design-guide/SKILL.md`
-2. 按照其中的指引，根据项目类型从 `~/.agents/skills/design-guide/references/` 目录中选择 1-2 个品牌设计参考
+1. 读取 skill 主文件：`{{HOME}}/.agents/skills/design-guide/SKILL.md`
+2. 按照其中的指引，根据项目类型从 `{{HOME}}/.agents/skills/design-guide/references/` 目录中选择 1-2 个品牌设计参考
 3. 读取选中的参考文件，提取具体的设计约束（配色、字体、间距、圆角、阴影等）
 4. 按照提取的约束实现前端页面
 

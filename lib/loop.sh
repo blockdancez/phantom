@@ -41,9 +41,11 @@ with open(req_path, 'r') as f:
 with open(plan_path, 'r') as f:
     plan = f.read()
 
+import os
 content = content.replace('{{REQUIREMENTS}}', requirements)
 content = content.replace('{{PLAN}}', plan)
 content = content.replace('{{PROJECT_DIR}}', work_dir)
+content = content.replace('{{HOME}}', os.path.expanduser('~'))
 
 with open(out_path, 'w') as f:
     f.write(content)
