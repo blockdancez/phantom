@@ -92,7 +92,13 @@ def parse_claude(log_file):
 
 
 def parse_codex(log_file):
-    """解析 Codex JSONL 格式"""
+    """解析 Codex JSONL 格式
+
+    Codex 事件格式:
+    - {"type":"item.completed","item":{"type":"agent_message","text":"..."}}
+    - {"type":"item.completed","item":{"type":"command_execution","command":"...","aggregated_output":"..."}}
+    - {"type":"item.started","item":{"type":"command_execution","command":"..."}}
+    """
     log_handle = open(log_file, "w") if log_file else None
     all_text = ""
 
@@ -107,43 +113,56 @@ def parse_codex(log_file):
                 continue
 
             event_type = event.get("type", "")
+            item = event.get("item", {})
+            item_type = item.get("type", "")
 
-            # Codex 事件类型
-            if event_type == "message":
-                role = event.get("role", "")
-                content = event.get("content", "")
-                if role == "assistant" and content:
-                    sys.stdout.write(content)
-                    sys.stdout.flush()
-                    all_text += content
+            if event_type == "item.completed":
+                if item_type == "agent_message":
+                    # AI 文本输出
+                    text = item.get("text", "")
+                    if text:
+                        sys.stdout.write(text + "\n")
+                        sys.stdout.flush()
+                        all_text += text + "\n"
 
-            elif event_type == "function_call":
-                name = event.get("name", "")
-                args = event.get("arguments", "")
-                if name == "shell":
-                    sys.stderr.write(f"\n{DIM}[tool] $ {args}{NC}\n")
-                elif name == "write" or name == "create_file":
-                    path = ""
-                    try:
-                        parsed = json.loads(args) if isinstance(args, str) else args
-                        path = parsed.get("path", "") or parsed.get("file_path", "")
-                    except (json.JSONDecodeError, AttributeError):
-                        path = args[:80]
-                    sys.stderr.write(f"\n{DIM}[tool] Writing {path}{NC}\n")
-                elif name == "apply_diff" or name == "edit_file":
-                    path = ""
-                    try:
-                        parsed = json.loads(args) if isinstance(args, str) else args
-                        path = parsed.get("path", "") or parsed.get("file_path", "")
-                    except (json.JSONDecodeError, AttributeError):
-                        path = args[:80]
+                elif item_type == "command_execution":
+                    # 命令执行完成，显示命令和输出摘要
+                    cmd = item.get("command", "")
+                    output = item.get("aggregated_output", "")
+                    exit_code = item.get("exit_code", 0)
+                    if cmd:
+                        # 提取实际命令（去掉 /bin/zsh -lc 包装）
+                        display_cmd = cmd
+                        if '-lc "' in cmd:
+                            display_cmd = cmd.split('-lc "', 1)[1].rstrip('"')
+                        elif "-lc '" in cmd:
+                            display_cmd = cmd.split("-lc '", 1)[1].rstrip("'")
+                        sys.stderr.write(f"\n{DIM}[tool] $ {display_cmd}{NC}\n")
+                        sys.stderr.flush()
+
+                elif item_type == "file_edit":
+                    # 文件编辑
+                    path = item.get("file_path", "") or item.get("path", "")
                     sys.stderr.write(f"\n{DIM}[tool] Editing {path}{NC}\n")
-                else:
-                    sys.stderr.write(f"\n{DIM}[tool] {name}{NC}\n")
-                sys.stderr.flush()
+                    sys.stderr.flush()
 
-            elif event_type == "function_call_output":
-                pass  # 工具输出，不显示
+                elif item_type == "file_create":
+                    # 文件创建
+                    path = item.get("file_path", "") or item.get("path", "")
+                    sys.stderr.write(f"\n{DIM}[tool] Writing {path}{NC}\n")
+                    sys.stderr.flush()
+
+            elif event_type == "item.started":
+                if item_type == "command_execution":
+                    cmd = item.get("command", "")
+                    if cmd:
+                        display_cmd = cmd
+                        if '-lc "' in cmd:
+                            display_cmd = cmd.split('-lc "', 1)[1].rstrip('"')
+                        elif "-lc '" in cmd:
+                            display_cmd = cmd.split("-lc '", 1)[1].rstrip("'")
+                        sys.stderr.write(f"\n{DIM}[tool] $ {display_cmd}{NC}\n")
+                        sys.stderr.flush()
 
     except KeyboardInterrupt:
         pass
