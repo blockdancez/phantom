@@ -60,7 +60,7 @@ STREAM_PARSER="$(dirname "${BASH_SOURCE[0]}")/stream-parser.py"
 
 # 检测后端（默认 claude）
 detect_backend() {
-  if [[ -n "$PHANTOM_BACKEND" ]]; then
+  if [[ -n "${PHANTOM_BACKEND:-}" ]]; then
     echo "$PHANTOM_BACKEND"
   else
     echo "claude"
