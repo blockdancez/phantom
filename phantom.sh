@@ -217,9 +217,12 @@ else
 
   # 如果未指定项目目录，自动生成目录名
   if [[ -z "$PROJECT_DIR" ]]; then
-    AUTO_NAME=$(claude -p --dangerously-skip-permissions \
-      "Read this file: $REQ_FILE. Based on its content, output ONLY a short kebab-case project directory name (e.g. todo-api, user-auth-service, blog-platform). No explanation, no quotes, just the name." \
-      2>/dev/null | tr -d '[:space:]' | head -c 50)
+    local name_prompt="Read this file: $REQ_FILE. Based on its content, output ONLY a short kebab-case project directory name (e.g. todo-api, user-auth-service, blog-platform). No explanation, no quotes, just the name."
+    if [[ "${PHANTOM_BACKEND:-claude}" == "codex" ]]; then
+      AUTO_NAME=$(codex exec --dangerously-bypass-approvals-and-sandbox "$name_prompt" 2>/dev/null | tr -d '[:space:]' | head -c 50)
+    else
+      AUTO_NAME=$(claude -p --dangerously-skip-permissions "$name_prompt" 2>/dev/null | tr -d '[:space:]' | head -c 50)
+    fi
 
     if [[ -z "$AUTO_NAME" ]] || [[ ! "$AUTO_NAME" =~ ^[a-z0-9][a-z0-9-]*$ ]]; then
       AUTO_NAME="project-$(date +%Y%m%d-%H%M%S)"

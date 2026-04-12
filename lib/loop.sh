@@ -58,16 +58,10 @@ PYEOF
 
 STREAM_PARSER="$(dirname "${BASH_SOURCE[0]}")/stream-parser.py"
 
-# 检测后端（默认 claude）
-detect_backend() {
-  if [[ -n "${PHANTOM_BACKEND:-}" ]]; then
-    echo "$PHANTOM_BACKEND"
-  else
-    echo "claude"
-  fi
+# 获取后端（延迟检测，默认 claude）
+get_backend() {
+  echo "${PHANTOM_BACKEND:-claude}"
 }
-
-BACKEND=$(detect_backend)
 
 # ── Claude Code 后端 ─────────────────────────────────────
 
@@ -156,28 +150,31 @@ _codex_continue() {
 # ── 统一接口 ─────────────────────────────────────────────
 
 ai_new() {
-  log_info "后端: $BACKEND"
-  case "$BACKEND" in
+  local b=$(get_backend)
+  log_info "后端: $b"
+  case "$b" in
     claude) _claude_new "$@" ;;
     codex)  _codex_new "$@" ;;
-    *) log_error "不支持的后端: $BACKEND"; exit 1 ;;
+    *) log_error "不支持的后端: $b"; exit 1 ;;
   esac
 }
 
 ai_new_plan() {
-  log_info "后端: $BACKEND (plan 模式)"
-  case "$BACKEND" in
+  local b=$(get_backend)
+  log_info "后端: $b (plan 模式)"
+  case "$b" in
     claude) _claude_new_plan "$@" ;;
     codex)  _codex_new_plan "$@" ;;
-    *) log_error "不支持的后端: $BACKEND"; exit 1 ;;
+    *) log_error "不支持的后端: $b"; exit 1 ;;
   esac
 }
 
 ai_continue() {
-  case "$BACKEND" in
+  local b=$(get_backend)
+  case "$b" in
     claude) _claude_continue "$@" ;;
     codex)  _codex_continue "$@" ;;
-    *) log_error "不支持的后端: $BACKEND"; exit 1 ;;
+    *) log_error "不支持的后端: $b"; exit 1 ;;
   esac
 }
 
