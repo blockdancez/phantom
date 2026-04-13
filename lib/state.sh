@@ -5,10 +5,30 @@ STATE_DIR=".phantom"
 STATE_FILE="$STATE_DIR/state.json"
 LOG_DIR="$STATE_DIR/logs"
 
+# Handoff artifacts — Context Reset 模式下跨会话传递信息
+PROGRESS_FILE="$STATE_DIR/progress.md"
+OPEN_ISSUES_FILE="$STATE_DIR/open-issues.md"
+FILE_MAP_FILE="$STATE_DIR/file-map.md"
+LAST_REVIEW_FILE="$STATE_DIR/last-review.json"
+
+ensure_handoff_files() {
+  mkdir -p "$STATE_DIR"
+  [[ -f "$PROGRESS_FILE" ]] || printf '# 进度\n\n（尚无已完成步骤）\n' > "$PROGRESS_FILE"
+  [[ -f "$OPEN_ISSUES_FILE" ]] || printf '# 待解决问题\n\n（无）\n' > "$OPEN_ISSUES_FILE"
+  [[ -f "$FILE_MAP_FILE" ]] || printf '# 关键文件索引\n\n（尚未生成）\n' > "$FILE_MAP_FILE"
+  [[ -f "$LAST_REVIEW_FILE" ]] || printf '{"verdict":"none","failures":[],"evidence":[]}\n' > "$LAST_REVIEW_FILE"
+}
+
+reset_handoff_files() {
+  rm -f "$PROGRESS_FILE" "$OPEN_ISSUES_FILE" "$FILE_MAP_FILE" "$LAST_REVIEW_FILE"
+  ensure_handoff_files
+}
+
 init_state() {
   local requirements_file="$1"
   local project_dir="$2"
   mkdir -p "$STATE_DIR/logs"
+  ensure_handoff_files
   cat > "$STATE_FILE" <<EOF
 {
   "requirements_file": "$requirements_file",

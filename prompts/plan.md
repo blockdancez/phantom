@@ -37,6 +37,11 @@
 2. **完整代码** — 每步给出实际代码块，不留 TODO / TBD / 占位符
 3. **运行命令** — 精确的测试或验证命令，以及预期输出
 4. **提交命令** — git add + commit
+5. **Acceptance（验收契约）** — 一组**可重放的脚本**，独立 reviewer 会照着跑：
+   - 每条是 `command` + `expect`（期望的退出码、输出片段、HTTP 状态、文件存在等）
+   - 例：`curl -s -o /dev/null -w "%{http_code}" http://localhost:$PORT/api/todos` → `expect: 200`
+   - 例：`test -f src/server.js && grep -q "process.env.PORT" src/server.js` → `expect: exit 0`
+   - 验收契约不是测试套件，是"这步真的做完了"的硬证据
 
 ### 关键原则
 
@@ -87,6 +92,11 @@ Expected: PASS
 
 - [ ] **Step 5: 提交**
 `git add ... && git commit -m "feat: ..."`
+
+**Acceptance:**
+- `test -f src/xxx.js` → exit 0
+- `npm test -- xxx` → exit 0, 输出含 "PASS"
+- `curl -s -o /dev/null -w "%{http_code}" http://localhost:$PORT/xxx` → `200`
 
 ### Task 2: [下一个组件]
 ...

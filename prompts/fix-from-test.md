@@ -1,5 +1,22 @@
 # 任务：根据测试结果修复代码
 
+> **重要：你处于 fresh context**。你不记得上一轮做过什么。
+> 必须先读以下交接物再动手：
+> - `.phantom/progress.md` — 已完成的步骤
+> - `.phantom/open-issues.md` — 上一轮 reviewer 列的问题
+> - `.phantom/last-review.json` — 上一轮 reviewer 的结构化判决
+> - `.phantom/logs/` — 历史运行日志
+
+## 上一轮 reviewer 的结构化反馈
+
+{{LAST_REVIEW}}
+
+## 未解决问题清单
+
+{{OPEN_ISSUES}}
+
+---
+
 上一轮测试发现了问题。请通过收集多维度的诊断信息来定位并修复问题。
 
 ## 第一步：收集诊断信息

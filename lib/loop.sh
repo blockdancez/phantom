@@ -23,27 +23,45 @@ render_prompt() {
   local plan=""
   [[ -f ".phantom/plan.md" ]] && plan=$(cat ".phantom/plan.md")
 
-  local req_tmp plan_tmp
+  # Handoff artifacts (Context Reset 模式)
+  local progress="" open_issues="" file_map="" last_review=""
+  [[ -f ".phantom/progress.md" ]]     && progress=$(cat ".phantom/progress.md")
+  [[ -f ".phantom/open-issues.md" ]]  && open_issues=$(cat ".phantom/open-issues.md")
+  [[ -f ".phantom/file-map.md" ]]     && file_map=$(cat ".phantom/file-map.md")
+  [[ -f ".phantom/last-review.json" ]] && last_review=$(cat ".phantom/last-review.json")
+
+  local req_tmp plan_tmp prog_tmp issues_tmp map_tmp review_tmp
   req_tmp=$(mktemp)
   plan_tmp=$(mktemp)
+  prog_tmp=$(mktemp)
+  issues_tmp=$(mktemp)
+  map_tmp=$(mktemp)
+  review_tmp=$(mktemp)
   printf '%s' "$requirements" > "$req_tmp"
   printf '%s' "$plan" > "$plan_tmp"
+  printf '%s' "$progress" > "$prog_tmp"
+  printf '%s' "$open_issues" > "$issues_tmp"
+  printf '%s' "$file_map" > "$map_tmp"
+  printf '%s' "$last_review" > "$review_tmp"
 
-  python3 - "$template_file" "$req_tmp" "$plan_tmp" "$work_dir" "$output_file" <<'PYEOF'
-import sys
+  python3 - "$template_file" "$req_tmp" "$plan_tmp" "$work_dir" "$output_file" \
+    "$prog_tmp" "$issues_tmp" "$map_tmp" "$review_tmp" <<'PYEOF'
+import sys, os
 
-template_path, req_path, plan_path, work_dir, out_path = sys.argv[1:]
+(template_path, req_path, plan_path, work_dir, out_path,
+ prog_path, issues_path, map_path, review_path) = sys.argv[1:]
 
-with open(template_path, 'r') as f:
-    content = f.read()
-with open(req_path, 'r') as f:
-    requirements = f.read()
-with open(plan_path, 'r') as f:
-    plan = f.read()
+def read(p):
+    with open(p, 'r') as f:
+        return f.read()
 
-import os
-content = content.replace('{{REQUIREMENTS}}', requirements)
-content = content.replace('{{PLAN}}', plan)
+content = read(template_path)
+content = content.replace('{{REQUIREMENTS}}', read(req_path))
+content = content.replace('{{PLAN}}', read(plan_path))
+content = content.replace('{{PROGRESS}}', read(prog_path))
+content = content.replace('{{OPEN_ISSUES}}', read(issues_path))
+content = content.replace('{{FILE_MAP}}', read(map_path))
+content = content.replace('{{LAST_REVIEW}}', read(review_path))
 content = content.replace('{{PROJECT_DIR}}', work_dir)
 content = content.replace('{{HOME}}', os.path.expanduser('~'))
 
@@ -51,7 +69,7 @@ with open(out_path, 'w') as f:
     f.write(content)
 PYEOF
 
-  rm -f "$req_tmp" "$plan_tmp"
+  rm -f "$req_tmp" "$plan_tmp" "$prog_tmp" "$issues_tmp" "$map_tmp" "$review_tmp"
 
   echo "$output_file"
 }
@@ -90,6 +108,21 @@ _claude_continue() {
   local log_file="$2"
 
   claude -p -c \
+    --dangerously-skip-permissions \
+    --output-format stream-json \
+    --verbose \
+    --include-partial-messages \
+    "$prompt" \
+    2>&1 | python3 "$STREAM_PARSER" "$log_file"
+}
+
+# Fresh context — 不带 -c，每次都是干净会话
+# 用于 Generator/Evaluator 分离 + Context Reset 模式
+_claude_fresh() {
+  local prompt="$1"
+  local log_file="$2"
+
+  claude -p \
     --dangerously-skip-permissions \
     --output-format stream-json \
     --verbose \
@@ -140,6 +173,19 @@ _codex_continue() {
     2>&1 | python3 "$STREAM_PARSER" "$log_file" codex
 }
 
+# Fresh context for Codex — 不 resume，每次干净会话
+_codex_fresh() {
+  local prompt="$1"
+  local log_file="$2"
+
+  codex exec \
+    --dangerously-bypass-approvals-and-sandbox \
+    --json \
+    -o "$log_file" \
+    "$prompt" \
+    2>&1 | python3 "$STREAM_PARSER" "$log_file" codex
+}
+
 # ── 统一接口 ─────────────────────────────────────────────
 
 ai_new() {
@@ -167,6 +213,16 @@ ai_continue() {
   case "$b" in
     claude) _claude_continue "$@" ;;
     codex)  _codex_continue "$@" ;;
+    *) log_error "不支持的后端: $b"; exit 1 ;;
+  esac
+}
+
+# 干净上下文调用 — 用于 Context Reset + 独立 Reviewer
+ai_fresh() {
+  local b=$(get_backend)
+  case "$b" in
+    claude) _claude_fresh "$@" ;;
+    codex)  _codex_fresh "$@" ;;
     *) log_error "不支持的后端: $b"; exit 1 ;;
   esac
 }

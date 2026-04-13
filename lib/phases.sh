@@ -43,79 +43,88 @@ run_plan_phase() {
 }
 
 # 阶段 2：开发-测试循环
-# 流程：开发 → 验证开发 → 测试 → 验证测试 → 失败则修复 → 重新测试
+# 文章思想：
+#   - Generator/Evaluator 物理分离 → dev 用 develop.md，review 用 review.md
+#   - Context Reset → 全程 ai_fresh，跨轮信息靠 .phantom/ 下的交接物
+#   - Sprint Contract → reviewer 真跑代码，写结构化 last-review.json
 run_devtest_phase() {
   local work_dir="$1"
   local max_cycles=10
   local cycle=0
 
-  log_phase "阶段 2/3: 开发-测试循环 (最多 $max_cycles 轮)"
+  log_phase "阶段 2/3: 开发-评审-测试循环 (最多 $max_cycles 轮，独立 reviewer)"
 
   set_phase_status "devtest" "in_progress"
+  ensure_handoff_files
 
-  # ── 第一步：开发代码 ──
-  log_info "[dev] 开始代码开发..."
-  local prompt_file
-  prompt_file=$(render_prompt "$SCRIPT_DIR/prompts/develop.md" "$work_dir")
-  ai_continue "$(cat "$prompt_file")" "$LOG_DIR/phase-devtest-dev-1.log"
-  rm -f "$prompt_file"
-
-  # ── 第二步：验证开发 ──
-  local dev_verified=false
+  # ── Stage A：开发 → 独立评审 → 通过为止 ──
+  local dev_passed=false
   local dev_round=0
-  local dev_max=10
+  local dev_max=8
 
-  while [[ "$dev_verified" == false ]] && [[ $dev_round -lt $dev_max ]]; do
+  while [[ "$dev_passed" == false ]] && [[ $dev_round -lt $dev_max ]]; do
     dev_round=$((dev_round + 1))
-    log_info "[dev] 验证开发 (第 $dev_round 轮)..."
 
-    local verify_file
-    verify_file=$(render_prompt "$SCRIPT_DIR/prompts/verify-dev.md" "$work_dir")
-    ai_continue "$(cat "$verify_file")" "$LOG_DIR/phase-devtest-verify-dev-${dev_round}.log"
-    rm -f "$verify_file"
+    # Generator: fresh context，吃 progress + open-issues + last-review
+    log_info "[dev] Generator 第 $dev_round 轮 — 写代码..."
+    local dev_prompt
+    dev_prompt=$(render_prompt "$SCRIPT_DIR/prompts/develop.md" "$work_dir")
+    ai_fresh "$(cat "$dev_prompt")" "$LOG_DIR/phase-devtest-dev-${dev_round}.log"
+    rm -f "$dev_prompt"
 
-    if grep -q "PHASE_COMPLETE" "$LOG_DIR/phase-devtest-verify-dev-${dev_round}.log"; then
-      log_ok "[dev] 开发验证通过!"
-      dev_verified=true
+    # Evaluator: fresh context，独立身份评审，写 last-review.json
+    log_info "[dev] Reviewer 第 $dev_round 轮 — 独立评审..."
+    local review_prompt
+    review_prompt=$(render_prompt "$SCRIPT_DIR/prompts/review.md" "$work_dir")
+    ai_fresh "$(cat "$review_prompt")" "$LOG_DIR/phase-devtest-review-${dev_round}.log"
+    rm -f "$review_prompt"
+
+    if grep -q "PHASE_COMPLETE" "$LOG_DIR/phase-devtest-review-${dev_round}.log"; then
+      log_ok "[dev] 独立评审通过!"
+      dev_passed=true
     else
-      log_warn "[dev] 验证发现问题，已修复，再次验证..."
+      log_warn "[dev] 评审 reject，下一轮 generator 会读 open-issues.md 修复..."
     fi
   done
 
-  # ── 第三步：开发-测试循环 ──
+  if [[ "$dev_passed" == false ]]; then
+    log_warn "[dev] 达到 $dev_max 轮仍未通过评审，强制进入测试阶段"
+  fi
+
+  # ── Stage B：测试 → 独立评审 → 失败则修复 ──
   while [[ $cycle -lt $max_cycles ]]; do
     cycle=$((cycle + 1))
     increment_iteration "devtest"
 
-    log_phase "开发-测试循环 第 $cycle/$max_cycles 轮"
+    log_phase "测试-评审循环 第 $cycle/$max_cycles 轮"
 
-    # 编写并运行测试
-    log_info "[test] 编写并运行测试..."
-    local test_file
-    test_file=$(render_prompt "$SCRIPT_DIR/prompts/test.md" "$work_dir")
-    ai_continue "$(cat "$test_file")" "$LOG_DIR/phase-devtest-test-${cycle}.log"
-    rm -f "$test_file"
+    # Tester (generator): fresh
+    log_info "[test] Tester 编写并运行测试..."
+    local test_prompt
+    test_prompt=$(render_prompt "$SCRIPT_DIR/prompts/test.md" "$work_dir")
+    ai_fresh "$(cat "$test_prompt")" "$LOG_DIR/phase-devtest-test-${cycle}.log"
+    rm -f "$test_prompt"
 
-    # 验证测试结果
-    log_info "[test] 验证测试结果..."
-    local verify_test_file
-    verify_test_file=$(render_prompt "$SCRIPT_DIR/prompts/verify-test.md" "$work_dir")
-    ai_continue "$(cat "$verify_test_file")" "$LOG_DIR/phase-devtest-verify-test-${cycle}.log"
-    rm -f "$verify_test_file"
+    # Reviewer: fresh
+    log_info "[test] Reviewer 独立评审测试与代码..."
+    local review_prompt
+    review_prompt=$(render_prompt "$SCRIPT_DIR/prompts/review.md" "$work_dir")
+    ai_fresh "$(cat "$review_prompt")" "$LOG_DIR/phase-devtest-review-test-${cycle}.log"
+    rm -f "$review_prompt"
 
-    if grep -q "PHASE_COMPLETE" "$LOG_DIR/phase-devtest-verify-test-${cycle}.log"; then
-      log_ok "[test] 所有测试通过! 开发-测试循环完成"
+    if grep -q "PHASE_COMPLETE" "$LOG_DIR/phase-devtest-review-test-${cycle}.log"; then
+      log_ok "[test] 评审通过! devtest 完成"
       set_phase_status "devtest" "completed"
       advance_phase
       return 0
     fi
 
-    # 测试失败 → 修复代码 → 重新测试
-    log_warn "[test] 测试未通过，返回修复代码..."
-    local fix_file
-    fix_file=$(render_prompt "$SCRIPT_DIR/prompts/fix-from-test.md" "$work_dir")
-    ai_continue "$(cat "$fix_file")" "$LOG_DIR/phase-devtest-fix-${cycle}.log"
-    rm -f "$fix_file"
+    # 评审 reject → 修复代码（fresh，吃 last-review.json）
+    log_warn "[test] 评审 reject，进入修复轮..."
+    local fix_prompt
+    fix_prompt=$(render_prompt "$SCRIPT_DIR/prompts/fix-from-test.md" "$work_dir")
+    ai_fresh "$(cat "$fix_prompt")" "$LOG_DIR/phase-devtest-fix-${cycle}.log"
+    rm -f "$fix_prompt"
   done
 
   log_warn "[devtest] 已达最大循环次数 $max_cycles，强制进入下一阶段"
@@ -138,7 +147,7 @@ run_deploy_phase() {
     local prompt_file
     prompt_file=$(render_prompt "$SCRIPT_DIR/prompts/deploy.md" "$work_dir")
 
-    ai_continue "$(cat "$prompt_file")" "$LOG_DIR/phase-deploy-${attempt}.log"
+    ai_fresh "$(cat "$prompt_file")" "$LOG_DIR/phase-deploy-${attempt}.log"
 
     rm -f "$prompt_file"
 
