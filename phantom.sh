@@ -337,7 +337,22 @@ run_all_phases() {
 
         # 初始化项目配置文件
         local b=$(get_backend)
-        local init_prompt='分析当前目录下的所有代码文件（忽略 .phantom/、node_modules/、.git/），然后用 Write 工具在当前目录创建一个文件，内容为该项目的说明文档，涵盖：项目概述、技术栈、目录结构、关键文件职责、如何运行/测试/部署、开发规范。直接写文件，不要只在终端输出。'
+        local init_prompt='分析当前目录下的所有代码文件（忽略 node_modules/ 和 .git/，但要读 .phantom/ 下的 plan.md / progress.md / file-map.md / open-issues.md 来理解项目历史），然后用 Write 工具在当前目录创建说明文档，涵盖：
+
+1. 项目概述、技术栈、目录结构
+2. 关键文件职责
+3. 如何运行/测试/部署
+4. 开发规范
+5. **「项目历史与 AI 记忆」章节（必写）**——明确告诉未来读这个文件的 AI 助手：
+   - 本项目由 phantom AutoDev 生成
+   - `.phantom/plan.md` 是原始实施计划（包含 acceptance 契约）
+   - `.phantom/progress.md` 是完整的开发进度记录
+   - `.phantom/file-map.md` 是关键文件索引
+   - `.phantom/open-issues.md` 是遗留待修问题
+   - `.phantom/port` 是本项目预分配端口，运行时从 `PORT` 环境变量读取，默认值用此文件内容
+   - 在开始任何新修改前**应先读这四个 md 文件**以获得完整上下文
+
+直接写文件，不要只在终端输出。'
         if [[ "$b" == "claude" ]]; then
           log_info "正在生成 CLAUDE.md..."
           (cd "$PROJECT_DIR" && claude -p --dangerously-skip-permissions \
