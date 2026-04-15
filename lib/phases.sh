@@ -134,7 +134,7 @@ run_dev_phase() {
   increment_iteration "dev"
   local iter
   iter=$(get_phase_iteration "dev")
-  log_phase "阶段 2/5: dev（feature=$feature_slug, iter=$iter）"
+  log_phase "阶段 2/5: dev（feature=${feature_slug}, iter=${iter}）"
 
   local changelog_before=0
   [[ -f "$CHANGELOG_FILE" ]] && changelog_before=$(grep -c '^## Iteration ' "$CHANGELOG_FILE" 2>/dev/null || echo 0)
@@ -200,7 +200,7 @@ run_code_review_phase() {
   increment_iteration "code_review"
   local iter
   iter=$(get_phase_iteration "code_review")
-  log_phase "阶段 3/5: code-review（feature=$feature_slug, iter=$iter）"
+  log_phase "阶段 3/5: code-review（feature=${feature_slug}, iter=${iter}）"
 
   reset_last_code_review
 
@@ -307,7 +307,7 @@ run_deploy_phase() {
   increment_iteration "deploy"
   local iter
   iter=$(get_phase_iteration "deploy")
-  log_phase "阶段 4/5: deploy（feature=$feature_slug, iter=$iter）"
+  log_phase "阶段 4/5: deploy（feature=${feature_slug}, iter=${iter}）"
 
   local port
   port=$(cat "$PORT_FILE" 2>/dev/null || echo 8080)
@@ -350,7 +350,7 @@ $deploy_err"
     # 1. docker build
     log_info "[1/4] docker build"
     if ! docker build -t "$container_name" . >>"$log_file" 2>&1; then
-      deploy_err="docker build 失败（见日志 $log_file）"
+      deploy_err="docker build 失败（见日志 ${log_file}）"
       log_warn "$deploy_err"
       continue
     fi
@@ -358,7 +358,7 @@ $deploy_err"
     # 2. docker run
     log_info "[2/4] docker run"
     if ! docker run -d --name "$container_name" -e "PORT=$port" -p "$port:$port" "$container_name" >>"$log_file" 2>&1; then
-      deploy_err="docker run 失败（见日志 $log_file）"
+      deploy_err="docker run 失败（见日志 ${log_file}）"
       log_warn "$deploy_err"
       docker rm -f "$container_name" >/dev/null 2>&1 || true
       continue
@@ -493,7 +493,7 @@ run_test_phase() {
   increment_iteration "test"
   local iter
   iter=$(get_phase_iteration "test")
-  log_phase "阶段 5/5: test（feature=$feature_slug, iter=$iter）"
+  log_phase "阶段 5/5: test（feature=${feature_slug}, iter=${iter}）"
 
   local log_file="$LOG_DIR/test-iter${iter}-${feature_slug}.log"
   local prompt_file
@@ -564,7 +564,7 @@ Test 评分 ${score}/100，低于阈值 80。$reason
 
 ## 必修项（硬性，dev 必须全部修掉）
 
-- [test] $reason，请查看 \`.phantom/test-report-iter${iter}.md\` 定位问题
+- [test] ${reason}，请查看 \`.phantom/test-report-iter${iter}.md\` 定位问题
 
 ## 建议项（软性）
 

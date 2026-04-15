@@ -173,7 +173,7 @@ if [[ "$DELETE" == true ]]; then
       DEL_DIR="$(cd "$DEL_NAME" && pwd)"
       DEL_NAME="$(basename "$DEL_DIR")"
     else
-      log_error "项目不存在: $DEL_NAME（在 $INVOKE_CWD 下也未找到）"
+      log_error "项目不存在: ${DEL_NAME}（在 ${INVOKE_CWD} 下也未找到）"
       exit 1
     fi
   fi
@@ -373,11 +373,11 @@ run_feature_sprint() {
 
     # Test 通过且达到 min_rounds → sprint 完成
     if [[ $round -ge $DEV_MIN_ROUNDS ]]; then
-      log_ok "feature $feature_slug sprint 完成（round=$round）"
+      log_ok "feature ${feature_slug} sprint 完成（round=${round}）"
       return 0
     fi
 
-    log_info "test 通过但 round=$round < min=$DEV_MIN_ROUNDS，强制再跑一轮打磨"
+    log_info "test 通过但 round=${round} < min=${DEV_MIN_ROUNDS}，强制再跑一轮打磨"
     # Shell 自己造一个"鼓励再打磨"的 return-packet，避免 dev 无所事事
     cat > "$RETURN_PACKET_FILE" <<EOF
 ---
@@ -389,7 +389,7 @@ triggered_at: $(date -u +%Y-%m-%dT%H:%M:%SZ)
 
 ## 为什么回来
 
-Test 已通过但当前只跑了 $round 轮，未达 min_rounds=$DEV_MIN_ROUNDS。这是**强制打磨轮**——第一次跑通不代表完美。
+Test 已通过但当前只跑了 ${round} 轮，未达 min_rounds=${DEV_MIN_ROUNDS}。这是**强制打磨轮**——第一次跑通不代表完美。
 
 ## 必修项（硬性，dev 必须全部修掉）
 

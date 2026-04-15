@@ -131,7 +131,7 @@ mkdir -p "$TARGET_DIR"
 
 if [[ -e "$TARGET" || -L "$TARGET" ]]; then
   if [[ -L "$TARGET" && "$(readlink "$TARGET")" == "$REPO_PHANTOM" ]]; then
-    ok "已经安装到 $TARGET，无需重复"
+    ok "已经安装到 ${TARGET}，无需重复"
   else
     warn "$TARGET 已存在，将覆盖"
     rm -f "$TARGET"
