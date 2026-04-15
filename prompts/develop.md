@@ -44,6 +44,15 @@ dev phase 只做"单元层面的自证"：**功能代码 + 单元测试 + 静态
 - 空/边界场景的处理代码（空列表、分页越界、超长字符串）
 - 结构化日志（JSON 格式，含 timestamp/level/message/request_id）
 
+**目录结构强制约定**：
+
+- 所有后端代码写到 `backend/` 下（Python 默认）
+- 所有前端代码写到 `frontend/` 下（React + TypeScript 默认）
+- 迁移 SQL 放 `backend/migrations/`，种子放 `backend/seeds/`
+- 前后端都各自有自己的依赖声明（`backend/pyproject.toml` / `frontend/package.json`）和 lockfile
+- 顶层只放 `Dockerfile` / `docker-compose.yml` / `README.md` / `.phantom/`
+- 纯后端项目不要建 `frontend/`，纯前端项目同理
+
 **如果这是循环回来的 round**，先读 `.phantom/return-packet.md`，**优先修必修项**，修完再继续新功能。
 
 ### 2. 写单元测试

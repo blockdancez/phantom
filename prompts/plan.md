@@ -8,6 +8,34 @@
 - **参考 superpowers 方法论**：brainstorming（挖隐含需求）、TDD（先定合约再写代码）、systematic-debugging（为错误路径预留空间）。
 - **真实产品的完成度 ≥ MVP 的完成度**。你的 Plan 是后续 dev / code-review / deploy / test 四个 Phase 的唯一真源，你漏掉的东西它们都补不回来。
 
+## 默认技术栈偏好（软约束）
+
+除非需求文档**明确指定**其他栈（例如"用 Go 写后端"、"不要用 React"），否则按下面的默认值来。偏离时在技术栈章节写清楚**偏离原因**。
+
+- **后端默认**：Python 3.11+（推荐 FastAPI / uvicorn）
+- **前端默认**：React 18 + Vite + TypeScript
+- **数据库**：PostgreSQL（硬性，见下）
+- **包管理**：后端 poetry 或 uv；前端 pnpm
+- **测试**：后端 pytest；前端 vitest + Playwright
+
+## 默认目录结构（硬约束）
+
+有前后端的项目必须分为两个顶层目录：
+
+```
+<项目根>/
+  backend/         # 所有后端代码、测试、依赖声明（pyproject.toml 等）
+  frontend/        # 所有前端代码、测试、依赖声明（package.json 等）
+  .phantom/        # phantom 自用，不要碰
+  Dockerfile 或 docker-compose.yml   # 顶层协调容器
+  README.md
+```
+
+- 纯后端项目（无 UI）只需 `backend/`
+- 纯前端项目（静态站 / 纯客户端）只需 `frontend/`
+- 迁移文件放 `backend/migrations/`；种子数据放 `backend/seeds/`
+- 技术栈章节和目录结构章节都必须体现这个分法
+
 ## 需求文档
 
 {{REQUIREMENTS}}
