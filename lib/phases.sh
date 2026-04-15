@@ -125,16 +125,72 @@ _plan_has_all_9_sections() {
   return 0
 }
 
-# ── 阶段 2：dev（feature-per-sprint 的单次 dev round） ────
-# 调用方负责 feature 迭代，这里只跑单次 dev round
+# ── 阶段 2：dev（单次 dev round，compaction 长会话） ────
+#
+# 调用方（主循环）负责 feature 迭代与 return-packet 传递；
+# 这里只跑一个 dev round——注入当前 feature slug，调用 generator，
+# 校验 changelog.md 有新条目。
 run_dev_phase() {
   local work_dir="$1" feature_slug="$2"
-  log_phase "阶段 2/5: dev（feature=$feature_slug）"
   set_phase_status "dev" "in_progress"
+  increment_iteration "dev"
+  local iter
+  iter=$(get_phase_iteration "dev")
+  log_phase "阶段 2/5: dev（feature=$feature_slug, iter=$iter）"
 
-  # TODO Step 3: 实现 dev round，含 self-test 无限自修
-  log_error "run_dev_phase 尚未实现（Step 3）"
-  return 1
+  local changelog_before=0
+  [[ -f "$CHANGELOG_FILE" ]] && changelog_before=$(grep -c '^## Iteration ' "$CHANGELOG_FILE" 2>/dev/null || echo 0)
+
+  local log_file="$LOG_DIR/dev-iter${iter}-${feature_slug}.log"
+  local prompt_file
+  PHANTOM_FEATURE="$feature_slug" \
+    prompt_file=$(render_prompt "$SCRIPT_DIR/prompts/develop.md" "$work_dir")
+  ai_run generator "$(cat "$prompt_file")" "$log_file"
+  rm -f "$prompt_file"
+
+  # 校验 changelog.md 新增了本 iteration 的条目
+  local changelog_after=0
+  [[ -f "$CHANGELOG_FILE" ]] && changelog_after=$(grep -c '^## Iteration ' "$CHANGELOG_FILE" 2>/dev/null || echo 0)
+
+  if [[ "$changelog_after" -le "$changelog_before" ]]; then
+    log_warn "dev 未在 changelog.md 新增 Iteration 条目（${changelog_before} → ${changelog_after}），触发补救 round"
+    local fix_prompt
+    fix_prompt=$(mktemp)
+    cat > "$fix_prompt" <<'EOF'
+你刚刚完成的 dev round **没有在 .phantom/changelog.md 追加新的 `## Iteration <N>` 条目**。
+
+请**只做这件事**：
+1. 运行 `git diff --stat HEAD` 查看本轮改动
+2. 按固定格式在 .phantom/changelog.md 末尾追加一节：
+
+```markdown
+## Iteration <N> — <feature-slug>
+
+### 做了什么
+- <概述本轮写的功能>
+
+### 自测结果
+- 单测：<N> 条，<M> 通过，覆盖率 <X>%
+- 静态检查：<tool> 0 error
+
+### 已知遗留
+- （无 / 简述）
+```
+
+3. 完成后停止，不要开始新功能
+EOF
+    ai_run generator "$(cat "$fix_prompt")" "${log_file%.log}-changelog-fix.log"
+    rm -f "$fix_prompt"
+  fi
+
+  # 跑完这一 round 后清除 return-packet（已被消费），归档到 logs/
+  if [[ -f "$RETURN_PACKET_FILE" ]]; then
+    archive_return_packet "$iter"
+    rm -f "$RETURN_PACKET_FILE"
+  fi
+
+  set_phase_status "dev" "completed"
+  return 0
 }
 
 # ── 阶段 3：code-review ────────────────────────────────
