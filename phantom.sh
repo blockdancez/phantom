@@ -42,21 +42,29 @@ Phantom AutoDev - 全自主需求开发程序
   --resume / --delete 默认扫描**当前目录**下的子项目。
 
 选项:
-  -h, --help                  显示帮助
-  --resume [项目名]            从上次中断的阶段继续
-  --delete [项目名]            删除项目
-  --strict                    任意阶段达到最大轮次直接失败（不强制推进）
-  --backend <claude|codex>    同时设置 generator 和 reviewer 后端
-  --generator <claude|codex>  指定 generator 后端
-  --reviewer <claude|codex>   指定 reviewer 后端
+  -h, --help                       显示帮助
+  --resume [项目名]                 从上次中断的阶段继续
+  --delete [项目名]                 删除项目
+  --strict                         达到 max rounds 时直接失败（不 forced advance）
+  --fast                           降低 min rounds 地板，快速跑通（烟测用）
+  --backend <claude|codex>         所有 role 的默认后端
+  --generator <claude|codex>       指定 generator 后端
+  --plan-reviewer <claude|codex>   指定 plan-reviewer 后端
+  --code-reviewer <claude|codex>   指定 code-reviewer 后端
+  --tester <claude|codex>          指定 tester 后端
+  --deploy <claude|codex>          指定 deploy 后端
+
+  跨模型默认规则：plan-reviewer / code-reviewer / tester 默认选一个
+  和 generator 不同的后端（只装一个后端时降级同后端并 warn）
 
   位置参数 claude/codex 等同于 --backend（向后兼容）
 
 示例:
   ./phantom.sh requirements.md
   ./phantom.sh --backend codex requirements.md
-  ./phantom.sh --generator codex --reviewer claude requirements.md
+  ./phantom.sh --generator codex --code-reviewer claude requirements.md
   ./phantom.sh --strict requirements.md
+  ./phantom.sh --fast requirements.md
   ./phantom.sh "构建一个Todo API，使用Node.js + Express，端口3000"
   ./phantom.sh --resume
   ./phantom.sh --resume todo-api
@@ -75,12 +83,19 @@ while [[ $# -gt 0 ]]; do
     --resume) RESUME=true; shift ;;
     --delete) DELETE=true; shift ;;
     --strict) export PHANTOM_STRICT=1; shift ;;
+    --fast) export PHANTOM_FAST=1; shift ;;
     --backend)
       export PHANTOM_BACKEND="$2"; shift 2 ;;
     --generator)
       export PHANTOM_GENERATOR_BACKEND="$2"; shift 2 ;;
-    --reviewer)
-      export PHANTOM_REVIEWER_BACKEND="$2"; shift 2 ;;
+    --plan-reviewer)
+      export PHANTOM_PLAN_REVIEWER_BACKEND="$2"; shift 2 ;;
+    --code-reviewer)
+      export PHANTOM_CODE_REVIEWER_BACKEND="$2"; shift 2 ;;
+    --tester)
+      export PHANTOM_TESTER_BACKEND="$2"; shift 2 ;;
+    --deploy)
+      export PHANTOM_DEPLOY_BACKEND="$2"; shift 2 ;;
     claude|codex)
       export PHANTOM_BACKEND="$1"; shift ;;
     *)
@@ -311,69 +326,195 @@ if [[ -z "${PORT:-}" ]]; then
   log_info "项目端口: $PORT"
 fi
 
-# ── 主循环（状态机） ──────────────────────────────────────
+# ── 主循环（harness-v2 feature-per-sprint） ──────────────
+
+# 每 feature 的循环上限
+DEV_MAX_ROUNDS=6
+DEV_MIN_ROUNDS=2
+
+if [[ "${PHANTOM_FAST:-0}" == "1" ]]; then
+  DEV_MIN_ROUNDS=1
+fi
+
+# 单个 feature 的完整 sprint：dev → code-review → deploy → test 循环
+# 直到 test 分数 ≥ 80 且轮数 ≥ min_rounds；失败上限 max_rounds
+run_feature_sprint() {
+  local feature_slug="$1"
+  log_phase "═══ Feature sprint: $feature_slug ═══"
+
+  local round=0
+  while [[ $round -lt $DEV_MAX_ROUNDS ]]; do
+    round=$((round + 1))
+    log_phase "── $feature_slug round $round/$DEV_MAX_ROUNDS ──"
+
+    # Dev
+    if ! run_dev_phase "$PROJECT_DIR" "$feature_slug"; then
+      log_error "dev phase 失败"
+      return 1
+    fi
+
+    # Code review
+    if ! run_code_review_phase "$PROJECT_DIR" "$feature_slug"; then
+      log_warn "code-review reject，继续下一轮 dev"
+      continue
+    fi
+
+    # Deploy
+    if ! run_deploy_phase "$PROJECT_DIR" "$feature_slug"; then
+      log_warn "deploy 失败，继续下一轮 dev"
+      continue
+    fi
+
+    # Test
+    if ! run_test_phase "$PROJECT_DIR" "$feature_slug"; then
+      log_warn "test 分数 < 80 或失败，继续下一轮 dev"
+      continue
+    fi
+
+    # Test 通过且达到 min_rounds → sprint 完成
+    if [[ $round -ge $DEV_MIN_ROUNDS ]]; then
+      log_ok "feature $feature_slug sprint 完成（round=$round）"
+      return 0
+    fi
+
+    log_info "test 通过但 round=$round < min=$DEV_MIN_ROUNDS，强制再跑一轮打磨"
+    # Shell 自己造一个"鼓励再打磨"的 return-packet，避免 dev 无所事事
+    cat > "$RETURN_PACKET_FILE" <<EOF
+---
+return_from: test
+iteration: $round
+feature: $feature_slug
+triggered_at: $(date -u +%Y-%m-%dT%H:%M:%SZ)
+---
+
+## 为什么回来
+
+Test 已通过但当前只跑了 $round 轮，未达 min_rounds=$DEV_MIN_ROUNDS。这是**强制打磨轮**——第一次跑通不代表完美。
+
+## 必修项（硬性，dev 必须全部修掉）
+
+- [polish] 回头审视本 feature 的代码和测试，找 1-3 处可以提升的地方：
+  - 错误处理是否覆盖完整？
+  - 空态/加载态文案是否到位？
+  - 日志字段是否齐全（request_id、耗时、状态）？
+  - 单测覆盖的边界场景是否充分？
+  - 代码可读性有没有改进空间？
+  至少做出 1 处改动并在 changelog.md 里写明。
+
+## 建议项（软性）
+
+- （无）
+
+## 全量报告
+
+- \`.phantom/test-report-iter${round}.md\`
+EOF
+  done
+
+  # 达到 max rounds 仍未通过
+  if [[ "${PHANTOM_STRICT:-0}" == "1" ]]; then
+    log_error "feature $feature_slug 达到 max_rounds=$DEV_MAX_ROUNDS 仍未通过（strict 模式）"
+    return 1
+  fi
+
+  log_warn "feature $feature_slug 达到 max_rounds 强制推进（forced_feature 标记）"
+  mark_forced_feature "$feature_slug"
+  return 0
+}
+
+# 生成 CLAUDE.md + cp 成 AGENTS.md
+generate_docs() {
+  log_info "生成 CLAUDE.md（将复制为 AGENTS.md）"
+  local forced_note=""
+  local forced_list
+  forced_list=$(list_forced_features)
+  if [[ -n "$forced_list" ]]; then
+    forced_note="
+
+**注意**：以下 feature 达到 max_rounds 被强制推进，产物可能不达标：
+$(echo "$forced_list" | sed 's/^/- /')
+"
+  fi
+
+  local init_prompt
+  init_prompt="分析当前目录下的所有代码文件（忽略 node_modules/ / .git/ / .phantom/logs/），然后读 .phantom/plan.locked.md 和 .phantom/changelog.md 了解项目完整历史，最后用 Write 工具在当前目录创建 CLAUDE.md，涵盖：
+
+1. 项目概述
+2. 技术栈与目录结构
+3. 关键文件职责
+4. 如何运行 / 测试 / 部署
+5. 开发规范
+6. **未达标 feature（如有）**：${forced_note:-（无）}
+7. **「项目历史与 AI 记忆」章节（必写）**——告诉未来读这个文件的 AI 助手：
+   - 本项目由 phantom AutoDev 生成
+   - \`.phantom/plan.locked.md\` 是原始完整规划（9 节）
+   - \`.phantom/changelog.md\` 是每轮 dev 的追加记录
+   - \`.phantom/test-report-iter*.md\` 是每轮 test 的评分报告
+   - \`.phantom/port\` 是本项目预分配端口
+   - 修改前**应先读 plan.locked.md**
+
+直接 Write 文件，不要在终端输出整篇。"
+
+  (cd "$PROJECT_DIR" && claude -p --dangerously-skip-permissions "$init_prompt") \
+    || log_warn "CLAUDE.md 生成失败"
+
+  if [[ -f "$PROJECT_DIR/CLAUDE.md" ]]; then
+    cp "$PROJECT_DIR/CLAUDE.md" "$PROJECT_DIR/AGENTS.md"
+    log_ok "已生成 CLAUDE.md 和 AGENTS.md（字节级一致）"
+  else
+    log_warn "CLAUDE.md 未生成，跳过 AGENTS.md 复制"
+  fi
+}
 
 run_all_phases() {
-  while true; do
-    local current_phase
-    current_phase=$(get_state '.current_phase')
+  # ── Plan phase（一次性）─────────────────────────
+  local current_phase
+  current_phase=$(get_state '.current_phase')
+  if [[ "$current_phase" == "plan" ]]; then
+    run_plan_phase "$PROJECT_DIR" || return 1
+    set_state '.current_phase' '"dev"'
+  fi
 
-    case "$current_phase" in
-      plan)
-        run_plan_phase "$PROJECT_DIR"
-        ;;
-      devtest)
-        run_devtest_phase "$PROJECT_DIR"
-        ;;
-      deploy)
-        run_deploy_phase "$PROJECT_DIR"
-        ;;
-      done)
-        log_phase "全部阶段完成!"
-        log_ok "项目已就绪: $PROJECT_DIR"
-        echo ""
-        log_info "状态摘要:"
-        jq '.phases' "$STATE_FILE"
+  # ── Feature-per-sprint 主循环 ─────────────────
+  local feature_count
+  feature_count=$(count_features)
+  log_info "计划中共 $feature_count 个 feature，开始 feature-per-sprint 循环"
 
-        # 初始化项目配置文件
-        local b=$(get_backend)
-        local init_prompt='分析当前目录下的所有代码文件（忽略 node_modules/ 和 .git/，但要读 .phantom/ 下的 plan.md / progress.md / file-map.md / open-issues.md 来理解项目历史），然后用 Write 工具在当前目录创建说明文档，涵盖：
+  local idx
+  idx=$(get_current_feature_index)
+  while [[ $idx -lt $feature_count ]]; do
+    local feature_slug
+    feature_slug=$(get_feature_by_index "$idx")
+    if [[ -z "$feature_slug" ]]; then
+      log_error "无法取到第 $idx 个 feature（idx 溢出）"
+      return 1
+    fi
 
-1. 项目概述、技术栈、目录结构
-2. 关键文件职责
-3. 如何运行/测试/部署
-4. 开发规范
-5. **「项目历史与 AI 记忆」章节（必写）**——明确告诉未来读这个文件的 AI 助手：
-   - 本项目由 phantom AutoDev 生成
-   - `.phantom/plan.md` 是原始实施计划（包含 acceptance 契约）
-   - `.phantom/progress.md` 是完整的开发进度记录
-   - `.phantom/file-map.md` 是关键文件索引
-   - `.phantom/open-issues.md` 是遗留待修问题
-   - `.phantom/port` 是本项目预分配端口，运行时从 `PORT` 环境变量读取，默认值用此文件内容
-   - 在开始任何新修改前**应先读这四个 md 文件**以获得完整上下文
+    if ! run_feature_sprint "$feature_slug"; then
+      log_error "feature sprint 失败：$feature_slug"
+      return 1
+    fi
 
-直接写文件，不要只在终端输出。'
-        if [[ "$b" == "claude" ]]; then
-          log_info "正在生成 CLAUDE.md..."
-          (cd "$PROJECT_DIR" && claude -p --dangerously-skip-permissions \
-            "${init_prompt/说明文档/CLAUDE.md 文档}" ) || log_warn "CLAUDE.md 生成失败"
-          [[ -f "$PROJECT_DIR/CLAUDE.md" ]] && log_ok "已生成 CLAUDE.md" || log_warn "CLAUDE.md 未生成"
-          log_ok "可以使用 cd $PROJECT_DIR && claude 继续开发"
-        elif [[ "$b" == "codex" ]]; then
-          log_info "正在生成 AGENTS.md..."
-          (cd "$PROJECT_DIR" && codex exec --dangerously-bypass-approvals-and-sandbox \
-            "${init_prompt/说明文档/AGENTS.md 文档}" ) || log_warn "AGENTS.md 生成失败"
-          [[ -f "$PROJECT_DIR/AGENTS.md" ]] && log_ok "已生成 AGENTS.md" || log_warn "AGENTS.md 未生成"
-          log_ok "可以使用 cd $PROJECT_DIR && codex 继续开发"
-        fi
-        return 0
-        ;;
-      *)
-        log_error "未知阶段: $current_phase"
-        return 1
-        ;;
-    esac
+    advance_feature_index
+    idx=$(get_current_feature_index)
   done
+
+  # ── 收尾 ──────────────────────────────────────
+  log_phase "全部 feature sprint 完成！"
+  log_ok "项目已就绪: $PROJECT_DIR"
+  echo ""
+  log_info "状态摘要:"
+  jq '.phases' "$STATE_FILE"
+
+  local forced
+  forced=$(list_forced_features)
+  if [[ -n "$forced" ]]; then
+    log_warn "被强制推进的 feature（未达标）:"
+    echo "$forced" | sed 's/^/  - /'
+  fi
+
+  generate_docs
+  return 0
 }
 
 # 记录开始时间
