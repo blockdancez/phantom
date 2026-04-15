@@ -9,6 +9,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 source "$SCRIPT_DIR/lib/utils.sh"
 source "$SCRIPT_DIR/lib/state.sh"
 source "$SCRIPT_DIR/lib/loop.sh"
+source "$SCRIPT_DIR/lib/code-review.sh"
 
 # 严格模式：达到最大轮次时直接 fail，而非 forced advance
 PHANTOM_STRICT="${PHANTOM_STRICT:-0}"
@@ -193,15 +194,111 @@ EOF
   return 0
 }
 
-# ── 阶段 3：code-review ────────────────────────────────
+# ── 阶段 3：code-review（AI 语义审查 + shell 兜底 grep） ──
+#
+# 返回：0 = pass，1 = fail（reviewer 或 shell 兜底命中）
 run_code_review_phase() {
   local work_dir="$1" feature_slug="$2"
-  log_phase "阶段 3/5: code-review（feature=$feature_slug）"
   set_phase_status "code_review" "in_progress"
+  increment_iteration "code_review"
+  local iter
+  iter=$(get_phase_iteration "code_review")
+  log_phase "阶段 3/5: code-review（feature=$feature_slug, iter=$iter）"
 
-  # TODO Step 4: 实现 reviewer 跑 + shell 兜底 grep
-  log_error "run_code_review_phase 尚未实现（Step 4）"
+  reset_last_code_review
+
+  local log_file="$LOG_DIR/code-review-iter${iter}-${feature_slug}.log"
+  local prompt_file
+  PHANTOM_FEATURE="$feature_slug" \
+    prompt_file=$(render_prompt "$SCRIPT_DIR/prompts/code-review.md" "$work_dir")
+  ai_run code_reviewer "$(cat "$prompt_file")" "$log_file"
+  rm -f "$prompt_file"
+
+  # 1. 校验 JSON 合法性
+  if ! last_code_review_valid_json; then
+    log_warn "code-review 未输出合法 JSON，强制 fail"
+    cat > "$LAST_CODE_REVIEW_FILE" <<EOF
+{"verdict":"fail","feature":"${feature_slug}","issues":[{"category":"other","where":"reviewer","what":"reviewer 未输出合法 JSON","evidence":"jq empty 失败"}],"notes":""}
+EOF
+    _write_code_review_return_packet "$feature_slug" "$iter"
+    set_phase_status "code_review" "failed"
+    return 1
+  fi
+
+  local verdict
+  verdict=$(read_code_review_verdict)
+
+  if [[ "$verdict" != "pass" ]]; then
+    log_warn "code-review verdict=$verdict"
+    _write_code_review_return_packet "$feature_slug" "$iter"
+    set_phase_status "code_review" "failed"
+    return 1
+  fi
+
+  # 2. Reviewer 说 pass → 跑 shell 兜底复查
+  log_info "Reviewer verdict=pass，执行 shell 兜底 grep 复查"
+  if run_shell_code_review; then
+    log_ok "code-review 通过（reviewer pass + shell 兜底 0 命中）"
+    set_phase_status "code_review" "completed"
+    return 0
+  fi
+
+  log_warn "shell 兜底复查发现 ${#_SHELL_REVIEW_HITS[@]} 处问题，强制降级 reviewer verdict=pass 为 fail"
+
+  # 把 shell 发现的问题注入 last-code-review.json
+  local tmp
+  tmp=$(mktemp)
+  local hits_json
+  hits_json=$(printf '%s\n' "${_SHELL_REVIEW_HITS[@]}" | jq -R -s 'split("\n") | map(select(length > 0))')
+  jq --argjson hits "$hits_json" \
+     '.verdict = "fail" | .issues += ($hits | map({category: "shell-grep", where: ".", what: ., evidence: "shell grep"}))' \
+     "$LAST_CODE_REVIEW_FILE" > "$tmp" && mv "$tmp" "$LAST_CODE_REVIEW_FILE"
+
+  _write_code_review_return_packet "$feature_slug" "$iter"
+  set_phase_status "code_review" "failed"
   return 1
+}
+
+# 写 return-packet.md（code-review 失败时）
+_write_code_review_return_packet() {
+  local feature_slug="$1" iter="$2"
+  local timestamp
+  timestamp=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+
+  # 从 last-code-review.json 取 issues
+  local issues_section=""
+  if last_code_review_valid_json; then
+    issues_section=$(jq -r '.issues[] | "- [code-review] \(.where): \(.what) (evidence: \(.evidence))"' "$LAST_CODE_REVIEW_FILE" 2>/dev/null)
+  fi
+  if [[ -z "$issues_section" ]]; then
+    issues_section="- [code-review] reviewer 失败但没输出具体 issues，见日志"
+  fi
+
+  cat > "$RETURN_PACKET_FILE" <<EOF
+---
+return_from: code-review
+iteration: $iter
+feature: $feature_slug
+triggered_at: $timestamp
+---
+
+## 为什么回来
+
+Code review 发现硬性问题，dev 必须修掉。
+
+## 必修项（硬性，dev 必须全部修掉）
+
+$issues_section
+
+## 建议项（软性，dev 自行判断改不改）
+
+- （无）
+
+## 全量报告
+
+- \`.phantom/last-code-review.json\`
+- \`.phantom/logs/code-review-iter${iter}-${feature_slug}.log\`
+EOF
 }
 
 # ── 阶段 4：deploy ────────────────────────────────────
