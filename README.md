@@ -1,199 +1,179 @@
 # Phantom AutoDev
 
-全自主需求开发程序 — 输入需求，自动完成从规划到部署的全流程。支持 Claude Code 和 OpenAI Codex 两种 AI 后端。
+全自主需求开发程序 — 输入需求，自动完成从规划到部署的全流程。支持 Claude Code 和 OpenAI Codex 两种 AI 后端，**默认强制跨模型**（generator 写代码，evaluator 跨模型审查）。
 
 ## 安装
 
 ```bash
-# 一键安装为系统命令 `phantom`
+# 远程一键装（推荐）
+curl -fsSL https://raw.githubusercontent.com/blockdancez/phantom/main/install.sh | bash
+
+# 或在仓库里本地装
+git clone https://github.com/blockdancez/phantom.git
+cd phantom
 ./install.sh
-
-# 自定义安装路径
-./install.sh /opt/bin/phantom
-
-# 卸载
-./install.sh --uninstall
 ```
 
-安装脚本会把 `phantom.sh` 软链到 `/usr/local/bin/phantom`（或 `~/.local/bin/phantom`），之后在**任何目录**都能直接调用 `phantom`。生成的项目会落在**当前工作目录**下，而不是 phantom 仓库里。
+安装脚本会把 `phantom.sh` 软链到 `/usr/local/bin/phantom`（或 `~/.local/bin/phantom`），之后在**任何目录**都能调用 `phantom`。生成的项目会落在**当前工作目录**下。
 
-## 使用方法
+## 使用
 
 ```bash
-# 安装后在任意目录使用（项目生成在 $PWD 下）
+# 在任意目录（项目生成在 $PWD 下）
 cd ~/workspace
 phantom requirements.md          # → ~/workspace/<auto-name>/
 
-# 不安装也可以直接用仓库里的脚本，同样落在 $PWD
-./phantom.sh requirements.md
-
 # 直接输入需求文本
-./phantom.sh "构建一个Todo API，使用Node.js + Express，端口3000"
+phantom "构建一个 Todo App，Node.js + Express + PostgreSQL + React 前端"
 
-# 指定 AI 后端（默认 claude）
-./phantom.sh codex requirements.md
+# 指定 generator 后端（跨模型角色自动选另一个）
+phantom --generator codex requirements.md
 
-# 指定项目输出目录
-./phantom.sh requirements.md ./projects/my-app
+# 精确指定每个 role 的后端
+phantom --generator claude --code-reviewer codex --tester codex requirements.md
 
-# 恢复中断的项目
-./phantom.sh --resume                # 交互式选择项目
-./phantom.sh --resume todo-api       # 指定项目名
+# Strict 模式：任意 phase 达到 max rounds 直接失败
+phantom --strict requirements.md
 
-# 删除项目
-./phantom.sh --delete                # 交互式选择
-./phantom.sh --delete todo-api       # 指定项目名
+# Fast 模式：降低 min rounds 地板，快速烟测
+phantom --fast requirements.md
+
+# 恢复中断
+phantom --resume                 # 交互选
+phantom --resume todo-app
+
+# 删除
+phantom --delete                 # 交互选
 ```
 
-## 工作流程
+## 工作流程（harness v2）
+
+参考 [Anthropic Harness Design for Long-Running Apps](https://www.anthropic.com/engineering/harness-design-long-running-apps) 的 harness 模式：
 
 ```
-输入需求
-  │
-  ▼
-┌─────────────────────────────────┐
-│  阶段 1: 规划 (Plan 模式)        │
-│  分析需求 → 生成 .phantom/plan.md │
-└──────────────┬──────────────────┘
-               ▼
-┌─────────────────────────────────┐
-│  阶段 2: 开发 (最多 20 轮)       │
-│  按计划编写代码                   │
-│  ↓                              │
-│  验证：安装依赖 → 启动项目 →      │
-│  curl 测试端点 → 检查占位符       │
-│  ↓                              │
-│  通过 → 下一阶段                 │
-│  失败 → 修复 → 再次验证          │
-└──────────────┬──────────────────┘
-               ▼
-┌─────────────────────────────────┐
-│  阶段 3: 测试 (最多 10 轮)       │
-│  编写单元测试 / Playwright 测试   │
-│  ↓                              │
-│  运行所有测试 → 分析覆盖率        │
-│  ↓                              │
-│  全部通过 → 下一阶段             │
-│  有失败 → 修复代码 → 重新运行     │
-└──────────────┬──────────────────┘
-               ▼
-┌─────────────────────────────────┐
-│  阶段 4: 部署 (最多 3 次)        │
-│  创建 Dockerfile →              │
-│  docker build → docker run →    │
-│  验证服务响应 → 清理容器          │
-└──────────────┬──────────────────┘
-               ▼
-            完成
+ plan ──▶ plan-review ──▶ plan ──▶ [dev ──▶ code-review ──▶ deploy ──▶ test]×feature ──▶ done
+  R1           R2          R3        │           │             │          │
+                                     ▲           │             │          │
+                                     └───────────┴─────────────┴──────────┘
+                                       return-packet 回流（任一失败）
 ```
+
+### Phase 1: plan（一次性）
+
+Planner 把需求展开成 **9 节** `.phantom/plan.md`：产品目标 / 技术栈 / 数据模型 / API 约定 / Feature 列表 / 非功能需求 / 编码标准 / 部署配置 / 验收评分 rubric。**明确反 YAGNI，鼓励野心大**。
+
+内部 3 轮：
+
+1. **R1 plan**：planner 起草
+2. **R2 plan-review**：跨模型 reviewer 只审第 5/6/9 节（feature 列表 + 非功能 + rubric），**只提建议无否决权**
+3. **R3 plan**：planner 根据 comments 修订，结束后冻结成 `.phantom/plan.locked.md`
+
+### 主循环：Feature-per-sprint
+
+按 plan 第 5 节的 feature 列表**一次一个 feature** 跑完整循环：
+
+- **Dev**：Generator 在 compaction 长会话里实现当前 feature，写单元测试（核心覆盖率 ≥80%），跑静态检查（ruff/eslint/tsc 等）**0 error**，自修复无限
+- **Code-review**：跨模型 reviewer 审 diff（placeholder / mock / 日志规范 / API 契约 / 安全红线），**shell 侧 grep 兜底**（TODO / FIXME / console.log / 硬编码端口 / 硬编码凭据）
+- **Deploy**：Generator 写 Dockerfile，**shell 跑 docker build/run/smoke 并 curl 所有端点**，2 次自试后失败回 dev
+- **Test**：跨模型 tester 用 Playwright MCP + curl 跑所有端点所有场景，按 rubric 打分。**累积测试所有已完成 feature**（防回归），总分 ≥ 80 过关
+
+每 feature `min_rounds=2`（打磨轮），`max_rounds=6`。达上限 strict 模式 exit 1，默认模式 `forced_feature` 标记继续。
+
+### 收尾
+
+所有 feature sprint 完成后生成 `CLAUDE.md`，然后 `cp` 成 `AGENTS.md`（字节级一致）。
 
 ## 核心机制
 
-### 同一会话
+### 强制跨模型评审
 
-所有阶段在同一个 AI 会话中执行。规划阶段启动新会话，后续阶段通过 `-c`（Claude）或 `resume --last`（Codex）接续，AI 自动压缩上下文保持连续性。
+`plan_reviewer` / `code_reviewer` / `tester` 三个 evaluator 角色默认自动选一个和 `generator` **不同**的后端，打破"同模型自检"的盲区。只装一个后端时降级为同后端并 warn。
 
-### 证据驱动验证
+角色与环境变量：
 
-验证不是问 AI "你觉得完成了吗"，而是让它用实际操作证明：
+| ROLE | 环境变量 | 默认跨模型 |
+|---|---|---|
+| `generator` | `PHANTOM_GENERATOR_BACKEND` | 否 |
+| `plan_reviewer` | `PHANTOM_PLAN_REVIEWER_BACKEND` | **是** |
+| `code_reviewer` | `PHANTOM_CODE_REVIEWER_BACKEND` | **是** |
+| `tester` | `PHANTOM_TESTER_BACKEND` | **是** |
+| `deploy` | `PHANTOM_DEPLOY_BACKEND` | 否 |
 
-1. 对照需求逐条核对 ✅/❌
-2. `grep` 扫描代码中的 TODO/FIXME
-3. 安装依赖并启动项目
-4. `curl` 逐个端点验证返回值
-5. 全部通过才算完成，否则修复后重新验证
+### Compaction 长会话
 
-### 流式输出
+每个 role 维持一个跨 round、跨 feature 的长会话（`claude -c` / `codex resume --last`），靠 CLI 原生 compaction 处理上下文膨胀。
 
-使用 `--output-format stream-json` + `stream-parser.py` 实时显示：
-- AI 的文本输出（逐字流式）
-- 工具调用（`[tool] $ npm install`、`[tool] Editing src/index.js`）
-- 最终结果保存到日志文件供完成状态检测
+### Return-packet 回流包
+
+循环任一站失败（code-review reject / deploy fail / test < 80）都写 `.phantom/return-packet.md` 退回 dev，含：
+- 必修项（硬性清单）
+- 建议项（软性清单）
+- 全量报告路径
+
+Dev 下一轮开头必读。
+
+### Shell 侧确定性判断
+
+可机械化判断的事全部由 shell 做，不问 AI 主观判断：
+
+- Plan 是否包含 9 节：`grep`
+- Changelog 是否新增 Iteration 条目：`grep -c`
+- Code-review 兜底：`lib/code-review.sh` 跑 5 类 grep
+- Deploy gate：`docker build` 退出码 + 容器 running + curl 非 5xx
+- Test 分数：从 `test-report-iter*.md` 提取"总分"
 
 ## 项目结构
 
 ```
-phantom.sh                  # 主入口：参数解析、状态机驱动
+phantom.sh                  # 主入口：参数解析 + 主循环（feature-per-sprint）
+install.sh                  # 安装脚本（双模式：本地 + 远程一键装）
 lib/
   utils.sh                  # 日志函数、依赖检查
-  state.sh                  # .phantom/state.json 读写
-  loop.sh                   # AI 后端抽象层 + 验证循环引擎
-  stream-parser.py          # 流式 JSON 解析器（支持 Claude / Codex）
+  state.sh                  # .phantom/state.json 读写 + handoff 文件常量
+  loop.sh                   # 后端抽象 + 跨模型解析 + compaction 调用
+  phases.sh                 # 5 个 phase 函数
+  code-review.sh            # Shell 侧兜底 grep
+  stream-parser.py          # 流式 JSON 解析器
 prompts/
-  plan.md                   # 规划阶段提示词
-  develop.md                # 开发阶段提示词
-  verify-dev.md             # 开发验证提示词（5步证据检查）
-  test.md                   # 测试阶段提示词
-  verify-test.md            # 测试验证提示词
-  deploy.md                 # Docker 部署提示词
+  plan.md                   # Planner：产出 9 节 plan
+  plan-review.md            # Plan reviewer：跨模型审 rubric
+  develop.md                # Generator：实现 feature + 单测 + 静态检查
+  code-review.md            # Code reviewer：跨模型审 diff
+  deploy.md                 # Deploy：写 Dockerfile
+  test.md                   # Tester：跨模型 Playwright + 接口 + 评分
 ```
 
-### 运行时生成
-
-每个项目在 `projects/<项目名>/` 下，包含：
+### 运行时生成（项目目录下）
 
 ```
-projects/todo-api/
+projects/<name>/
   .phantom/
-    state.json              # 当前阶段、迭代次数、需求文件路径
-    plan.md                 # AI 生成的实施计划
-    logs/                   # 每轮迭代的日志
+    state.json              # 5 phase + current_feature_index + forced_features
+    plan.md                 # Phase 1 工作稿
+    plan.locked.md          # Phase 1 冻结版（主循环读这个）
+    plan-review-comments.md # Phase 1 R2 产物
+    changelog.md            # dev 每轮追加
+    return-packet.md        # 当前回流包
+    last-code-review.json   # 最近一次 code-review 的 JSON verdict
+    test-report-iter<N>.md  # 每轮 test 报告
+    port                    # 预分配端口
+    sessions/               # 每 role+backend 的会话标记（compaction）
+    logs/                   # 每 phase 每 round 的原始输出
   src/                      # AI 生成的项目代码
   Dockerfile
+  CLAUDE.md / AGENTS.md     # 项目说明（phantom 跑完后生成）
   ...
 ```
 
-`state.json` 示例：
-
-```json
-{
-  "requirements_file": "/path/to/requirements.md",
-  "project_dir": "/path/to/projects/todo-api",
-  "current_phase": "dev",
-  "phases": {
-    "plan":   { "status": "completed", "iteration": 1 },
-    "dev":    { "status": "in_progress", "iteration": 3 },
-    "test":   { "status": "pending", "iteration": 0 },
-    "deploy": { "status": "pending", "iteration": 0 }
-  },
-  "started_at": "2026-04-09T04:29:07Z"
-}
-```
-
-## AI 后端支持
-
-| 功能 | Claude Code | OpenAI Codex |
-|------|------------|--------------|
-| 执行 | `claude -p` | `codex exec` |
-| 跳过权限 | `--dangerously-skip-permissions` | `--dangerously-bypass-approvals-and-sandbox` |
-| Plan 阶段约束 | 提示词约定 | 提示词注入 |
-| 流式输出 | `stream-json` | `--json` (JSONL) |
-
-> 注：Plan 阶段**没有**使用 Claude 的 `--permission-mode plan`。两种后端的"只允许写 `.phantom/plan.md`"约束都靠 `prompts/plan.md` 顶部的强约定执行，调度器只检查文件是否生成。这是刻意选择——保持两个后端流程对称。
-
-devtest 阶段全程使用**干净上下文**（不带 `-c` / 不 `resume --last`），跨轮信息靠 `.phantom/` 下的交接文件传递，详见下方"核心机制"。
-
-默认使用 Claude，通过第一个参数切换；也可以让 generator 和 reviewer 用不同后端：
-
-```bash
-./phantom.sh claude requirements.md          # 全部用 Claude
-./phantom.sh codex requirements.md           # 全部用 Codex
-./phantom.sh requirements.md                 # 默认 Claude
-
-# 混合后端（打破"同模型自检"幻觉）
-PHANTOM_GENERATOR_BACKEND=codex \
-PHANTOM_REVIEWER_BACKEND=claude \
-  ./phantom.sh requirements.md
-
-# 严格模式：任意阶段达到最大轮次直接失败，不强制推进
-./phantom.sh --strict requirements.md
-```
-
-后端选择优先级：`PHANTOM_<ROLE>_BACKEND` → `PHANTOM_BACKEND` → `claude`。角色：`generator` / `reviewer` / `plan` / `deploy`。
-
 ## 依赖
 
-- **Claude Code CLI** >= 2.0 或 **OpenAI Codex CLI**（至少安装一个）
+- **Claude Code CLI** >= 2.0 或 **OpenAI Codex CLI**（至少装一个，强烈建议两个都装以启用跨模型）
 - **jq** — JSON 状态管理
-- **python3** — 流式输出解析
-- **Docker** — 部署阶段
+- **python3** — 流式输出解析 + 端口分配
+- **docker** — deploy 阶段
+- **curl** — deploy phase 的 smoke 测试
+- **postgres MCP**（可选）— 数据库项目用
+
+## 理念
+
+**"Find the simplest solution possible, and only increase complexity when needed"**——当模型变得更强时，feature-per-sprint 可以退化到 V2 的单次 pass，plan 的 R2 协商可以删掉，跨模型强制可以放宽。当前的脚手架是为了模型限制服务的，不是永久建筑。
