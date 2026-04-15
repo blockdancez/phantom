@@ -253,11 +253,11 @@ if [[ "$RESUME" == true ]]; then
   log_info "需求文档: $REQ_FILE"
   log_info "当前阶段: $CURRENT_PHASE"
 
-  FORCED_PHASES=$(list_forced_phases)
-  if [[ -n "$FORCED_PHASES" ]]; then
-    log_warn "以下阶段曾因达到最大轮次被**强制推进**（非正常通过）："
-    echo "$FORCED_PHASES" | sed 's/^/  - /'
-    log_warn "这些阶段的产物可能不达标。建议核查 .phantom/logs/ 和当前代码状态。"
+  FORCED_FEATURES=$(list_forced_features)
+  if [[ -n "$FORCED_FEATURES" ]]; then
+    log_warn "以下 feature 曾因达到最大轮次被**强制推进**（非正常通过）："
+    echo "$FORCED_FEATURES" | sed 's/^/  - /'
+    log_warn "这些 feature 的产物可能不达标。建议核查 .phantom/logs/ 和当前代码状态。"
   fi
 
   check_dependencies
