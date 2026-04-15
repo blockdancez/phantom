@@ -33,9 +33,13 @@
 2. 如果有 open issues，**先修这些**，再继续新功能
 3. 查看已有代码（git status / ls），了解当前状态
 4. 按照计划的步骤顺序，逐一实现功能
-5. 每完成一个步骤，把它追加到 `.phantom/progress.md`（一行：`- [x] Task N Step M: 描述`）
+5. 每完成一个步骤，**立刻**追加到 `.phantom/progress.md`（一行：`- [x] Task N Step M: 描述`）
 6. 维护 `.phantom/file-map.md`，记录关键文件 → 一句话职责
 7. 所有代码都要写入实际文件，不要只输出到终端
+
+> ⚠️ **硬性要求**：本轮结束前 `.phantom/progress.md` **必须**至少新增一行。
+> 这是 Context Reset 模式的命脉：下一轮的你（fresh context）只能通过 progress.md 知道刚才发生了什么。
+> 调度器会检查行数是否增长，没增长会强制让你再跑一轮专门补这个文件——浪费时间。
 
 ## 前端设计规范
 

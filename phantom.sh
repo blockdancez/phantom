@@ -7,7 +7,20 @@
 
 set -euo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# ── 解析 symlink，找到真实脚本所在目录 ──
+# 允许通过 `ln -s /path/to/phantom.sh /usr/local/bin/phantom` 安装后直接调用
+_SOURCE="${BASH_SOURCE[0]}"
+while [[ -L "$_SOURCE" ]]; do
+  _DIR="$(cd -P "$(dirname "$_SOURCE")" && pwd)"
+  _SOURCE="$(readlink "$_SOURCE")"
+  [[ "$_SOURCE" != /* ]] && _SOURCE="$_DIR/$_SOURCE"
+done
+SCRIPT_DIR="$(cd -P "$(dirname "$_SOURCE")" && pwd)"
+unset _SOURCE _DIR
+
+# 用户的当前工作目录（生成的项目会落在这里，而非 phantom 仓库内）
+INVOKE_CWD="$(pwd)"
+
 source "$SCRIPT_DIR/lib/utils.sh"
 source "$SCRIPT_DIR/lib/state.sh"
 source "$SCRIPT_DIR/lib/phases.sh"
@@ -24,19 +37,26 @@ Phantom AutoDev - 全自主需求开发程序
 
 参数:
   需求            可以是文件路径（.md / .txt）或直接输入需求文本
-  项目目录        可选，代码生成的目标目录（默认: ./projects/<自动命名>）
+  项目目录        可选，代码生成的目标目录（默认：当前目录下的 ./<自动命名>/）
+
+  --resume / --delete 默认扫描**当前目录**下的子项目。
 
 选项:
-  -h, --help              显示帮助
-  --resume [项目名]        从上次中断的阶段继续
-  --delete [项目名]        删除项目
+  -h, --help                  显示帮助
+  --resume [项目名]            从上次中断的阶段继续
+  --delete [项目名]            删除项目
+  --strict                    任意阶段达到最大轮次直接失败（不强制推进）
+  --backend <claude|codex>    同时设置 generator 和 reviewer 后端
+  --generator <claude|codex>  指定 generator 后端
+  --reviewer <claude|codex>   指定 reviewer 后端
 
-  第一个参数如果是 claude 或 codex，则指定 AI 后端（默认 claude）
+  位置参数 claude/codex 等同于 --backend（向后兼容）
 
 示例:
   ./phantom.sh requirements.md
-  ./phantom.sh claude requirements.md
-  ./phantom.sh codex requirements.md
+  ./phantom.sh --backend codex requirements.md
+  ./phantom.sh --generator codex --reviewer claude requirements.md
+  ./phantom.sh --strict requirements.md
   ./phantom.sh "构建一个Todo API，使用Node.js + Express，端口3000"
   ./phantom.sh --resume
   ./phantom.sh --resume todo-api
@@ -54,6 +74,13 @@ while [[ $# -gt 0 ]]; do
     -h|--help) usage; exit 0 ;;
     --resume) RESUME=true; shift ;;
     --delete) DELETE=true; shift ;;
+    --strict) export PHANTOM_STRICT=1; shift ;;
+    --backend)
+      export PHANTOM_BACKEND="$2"; shift 2 ;;
+    --generator)
+      export PHANTOM_GENERATOR_BACKEND="$2"; shift 2 ;;
+    --reviewer)
+      export PHANTOM_REVIEWER_BACKEND="$2"; shift 2 ;;
     claude|codex)
       export PHANTOM_BACKEND="$1"; shift ;;
     *)
@@ -72,26 +99,36 @@ done
 # ── Delete 模式 ──────────────────────────────────────────
 
 if [[ "$DELETE" == true ]]; then
+  # 当前目录本身就是项目
+  if [[ -z "$PROJECT_DIR" ]] && [[ -f "$INVOKE_CWD/.phantom/state.json" ]]; then
+    printf "确认清理当前目录的 phantom 状态（.phantom/ 目录将被删除，代码文件保留）？(y/N): "
+    read -r CONFIRM
+    if [[ "$CONFIRM" == "y" || "$CONFIRM" == "Y" ]]; then
+      rm -rf "$INVOKE_CWD/.phantom"
+      log_ok "已清理 .phantom/"
+    else
+      log_info "已取消"
+    fi
+    exit 0
+  fi
   if [[ -z "$PROJECT_DIR" ]]; then
-    # 列出所有项目让用户选择
+    # 扫描当前目录下含 .phantom/state.json 的子项目
     PROJECTS=()
-    for dir in "$SCRIPT_DIR/projects"/*/; do
+    for dir in "$INVOKE_CWD"/*/; do
       [[ -d "$dir" ]] || continue
+      [[ -f "$dir/.phantom/state.json" ]] || continue
       proj_name="$(basename "$dir")"
-      phase="—"
-      if [[ -f "$dir/.phantom/state.json" ]]; then
-        phase=$(jq -r '.current_phase' "$dir/.phantom/state.json" 2>/dev/null)
-      fi
+      phase=$(jq -r '.current_phase' "$dir/.phantom/state.json" 2>/dev/null || echo "—")
       PROJECTS+=("$dir|$proj_name|$phase")
     done
 
     if [[ ${#PROJECTS[@]} -eq 0 ]]; then
-      log_error "没有项目可删除"
+      log_error "当前目录 ($INVOKE_CWD) 下没有 phantom 项目可删除"
       exit 1
     fi
 
     echo ""
-    log_info "项目列表："
+    log_info "项目列表（当前目录：${INVOKE_CWD}）："
     echo ""
     for i in "${!PROJECTS[@]}"; do
       IFS='|' read -r dir name phase <<< "${PROJECTS[$i]}"
@@ -113,11 +150,15 @@ if [[ "$DELETE" == true ]]; then
 
     IFS='|' read -r DEL_DIR DEL_NAME _ <<< "${PROJECTS[$((CHOICE - 1))]}"
   else
-    # 指定了项目名
+    # 指定了项目名或路径
     DEL_NAME="$PROJECT_DIR"
-    DEL_DIR="$SCRIPT_DIR/projects/$DEL_NAME"
-    if [[ ! -d "$DEL_DIR" ]]; then
-      log_error "项目不存在: $DEL_NAME"
+    if [[ -d "$INVOKE_CWD/$DEL_NAME" ]]; then
+      DEL_DIR="$INVOKE_CWD/$DEL_NAME"
+    elif [[ -d "$DEL_NAME" ]]; then
+      DEL_DIR="$(cd "$DEL_NAME" && pwd)"
+      DEL_NAME="$(basename "$DEL_DIR")"
+    else
+      log_error "项目不存在: $DEL_NAME（在 $INVOKE_CWD 下也未找到）"
       exit 1
     fi
   fi
@@ -136,24 +177,27 @@ fi
 # ── Resume 模式 ──────────────────────────────────────────
 
 if [[ "$RESUME" == true ]]; then
-  # 如果未指定项目，列出所有项目让用户选择
+  # 当前目录本身就是项目
+  if [[ -z "$PROJECT_DIR" ]] && [[ -f "$INVOKE_CWD/.phantom/state.json" ]]; then
+    PROJECT_DIR="$INVOKE_CWD"
+  fi
+  # 如果未指定项目，扫描当前目录下含 .phantom/state.json 的子项目
   if [[ -z "$PROJECT_DIR" ]]; then
-    # 收集所有含 state.json 的项目
     PROJECTS=()
     while IFS= read -r state_file; do
       proj_dir="$(dirname "$(dirname "$state_file")")"
       proj_name="$(basename "$proj_dir")"
       phase=$(jq -r '.current_phase' "$state_file" 2>/dev/null)
       PROJECTS+=("$proj_dir|$proj_name|$phase")
-    done < <(find "$SCRIPT_DIR/projects" -name "state.json" -path "*/.phantom/*" -maxdepth 3 2>/dev/null)
+    done < <(find "$INVOKE_CWD" -maxdepth 3 -name "state.json" -path "*/.phantom/*" 2>/dev/null)
 
     if [[ ${#PROJECTS[@]} -eq 0 ]]; then
-      log_error "没有找到可恢复的项目"
+      log_error "当前目录 ($INVOKE_CWD) 下没有找到可恢复的 phantom 项目"
       exit 1
     fi
 
     echo ""
-    log_info "可恢复的项目："
+    log_info "可恢复的项目（当前目录：${INVOKE_CWD}）："
     echo ""
     for i in "${!PROJECTS[@]}"; do
       IFS='|' read -r dir name phase <<< "${PROJECTS[$i]}"
@@ -169,11 +213,11 @@ if [[ "$RESUME" == true ]]; then
     fi
 
     IFS='|' read -r PROJECT_DIR _ _ <<< "${PROJECTS[$((CHOICE - 1))]}"
-  elif [[ -d "$SCRIPT_DIR/projects/$PROJECT_DIR" ]]; then
-    # 传入的是项目名，拼接完整路径
-    PROJECT_DIR="$SCRIPT_DIR/projects/$PROJECT_DIR"
+  elif [[ -d "$INVOKE_CWD/$PROJECT_DIR" ]]; then
+    # 当前目录下的子项目名
+    PROJECT_DIR="$INVOKE_CWD/$PROJECT_DIR"
   elif [[ ! -d "$PROJECT_DIR" ]]; then
-    log_error "项目不存在: $PROJECT_DIR (也不在 projects/ 下)"
+    log_error "项目不存在: $PROJECT_DIR (也不在当前目录 $INVOKE_CWD 下)"
     exit 1
   fi
 
@@ -193,6 +237,13 @@ if [[ "$RESUME" == true ]]; then
   log_info "项目目录: $PROJECT_DIR"
   log_info "需求文档: $REQ_FILE"
   log_info "当前阶段: $CURRENT_PHASE"
+
+  FORCED_PHASES=$(list_forced_phases)
+  if [[ -n "$FORCED_PHASES" ]]; then
+    log_warn "以下阶段曾因达到最大轮次被**强制推进**（非正常通过）："
+    echo "$FORCED_PHASES" | sed 's/^/  - /'
+    log_warn "这些阶段的产物可能不达标。建议核查 .phantom/logs/ 和当前代码状态。"
+  fi
 
   check_dependencies
 
@@ -215,26 +266,17 @@ else
     log_info "需求文本已写入临时文件: $REQ_FILE"
   fi
 
-  # 如果未指定项目目录，自动生成目录名
+  # 未指定项目目录时，直接使用当前目录（不再新建子目录）
   if [[ -z "$PROJECT_DIR" ]]; then
-    NAME_PROMPT="Read this file: $REQ_FILE. Based on its content, output ONLY a short kebab-case project directory name (e.g. todo-api, user-auth-service, blog-platform). No explanation, no quotes, just the name."
-    AUTO_NAME=""
-    if [[ "${PHANTOM_BACKEND:-claude}" == "codex" ]]; then
-      AUTO_NAME=$(codex exec --dangerously-bypass-approvals-and-sandbox "$NAME_PROMPT" 2>/dev/null | tr -d '[:space:]' | head -c 50) || true
-    else
-      AUTO_NAME=$(claude -p --dangerously-skip-permissions "$NAME_PROMPT" 2>/dev/null | tr -d '[:space:]' | head -c 50) || true
+    PROJECT_DIR="$INVOKE_CWD"
+    if [[ -f "$PROJECT_DIR/.phantom/state.json" ]]; then
+      log_error "当前目录已有 phantom 项目（.phantom/state.json 已存在）。使用 --resume 恢复或 --delete 清理。"
+      exit 1
     fi
-
-    if [[ -z "$AUTO_NAME" ]] || [[ ! "$AUTO_NAME" =~ ^[a-z0-9][a-z0-9-]*$ ]]; then
-      AUTO_NAME="project"
-    fi
-
-    # 加 4 位随机后缀避免同名冲突
-    RAND_SUFFIX=$(python3 -c "import random,string; print(''.join(random.choices(string.ascii_lowercase+string.digits,k=4)))")
-    AUTO_NAME="${AUTO_NAME}-${RAND_SUFFIX}"
-
-    PROJECT_DIR="$SCRIPT_DIR/projects/$AUTO_NAME"
-    log_info "自动生成项目目录: $PROJECT_DIR"
+    log_info "将在当前目录生成项目: $PROJECT_DIR"
+  elif [[ "$PROJECT_DIR" != /* ]]; then
+    # 用户传的是相对路径，按当前目录解析
+    PROJECT_DIR="$INVOKE_CWD/$PROJECT_DIR"
   fi
 
   mkdir -p "$PROJECT_DIR"
@@ -284,17 +326,18 @@ run_all_phases() {
 
         # 初始化项目配置文件
         local b=$(get_backend)
+        local init_prompt='分析当前目录下的所有代码文件（忽略 .phantom/、node_modules/、.git/），然后用 Write 工具在当前目录创建一个文件，内容为该项目的说明文档，涵盖：项目概述、技术栈、目录结构、关键文件职责、如何运行/测试/部署、开发规范。直接写文件，不要只在终端输出。'
         if [[ "$b" == "claude" ]]; then
-          log_info "正在执行 claude /init 生成 CLAUDE.md..."
-          claude -p --dangerously-skip-permissions \
-            "请为这个项目执行 /init，生成 CLAUDE.md 文件，描述项目结构、技术栈和开发规范。" \
-            2>/dev/null || true
+          log_info "正在生成 CLAUDE.md..."
+          (cd "$PROJECT_DIR" && claude -p --dangerously-skip-permissions \
+            "${init_prompt/说明文档/CLAUDE.md 文档}" ) || log_warn "CLAUDE.md 生成失败"
+          [[ -f "$PROJECT_DIR/CLAUDE.md" ]] && log_ok "已生成 CLAUDE.md" || log_warn "CLAUDE.md 未生成"
           log_ok "可以使用 cd $PROJECT_DIR && claude 继续开发"
         elif [[ "$b" == "codex" ]]; then
           log_info "正在生成 AGENTS.md..."
-          codex exec --dangerously-bypass-approvals-and-sandbox \
-            "分析当前项目的所有文件，生成一个 AGENTS.md 文件，描述项目结构、技术栈、开发规范和关键文件说明。" \
-            2>/dev/null || true
+          (cd "$PROJECT_DIR" && codex exec --dangerously-bypass-approvals-and-sandbox \
+            "${init_prompt/说明文档/AGENTS.md 文档}" ) || log_warn "AGENTS.md 生成失败"
+          [[ -f "$PROJECT_DIR/AGENTS.md" ]] && log_ok "已生成 AGENTS.md" || log_warn "AGENTS.md 未生成"
           log_ok "可以使用 cd $PROJECT_DIR && codex 继续开发"
         fi
         return 0

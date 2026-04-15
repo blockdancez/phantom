@@ -1,5 +1,13 @@
 # 任务：分析需求并制定实施计划
 
+> ⚠️ **本阶段强约束**
+> - 你**只允许写入** `.phantom/plan.md` 这一个文件
+> - 不要修改 `src/`，不要安装依赖，不要执行项目代码
+> - 不要先输出大段说明文字——先用 Write 工具把计划写进 `.phantom/plan.md`，再总结
+> - 计划生成成功的唯一证据是 `.phantom/plan.md` 文件存在且内容完整
+
+{{EXTRA_NOTE}}
+
 你是一个全自主开发代理。你的任务是分析以下需求文档，制定详细的实施计划。
 全程自主决策，不要向用户提问，遇到需要选择的地方直接选择最佳方案。
 
@@ -39,9 +47,16 @@
 4. **提交命令** — git add + commit
 5. **Acceptance（验收契约）** — 一组**可重放的脚本**，独立 reviewer 会照着跑：
    - 每条是 `command` + `expect`（期望的退出码、输出片段、HTTP 状态、文件存在等）
-   - 例：`curl -s -o /dev/null -w "%{http_code}" http://localhost:$PORT/api/todos` → `expect: 200`
-   - 例：`test -f src/server.js && grep -q "process.env.PORT" src/server.js` → `expect: exit 0`
    - 验收契约不是测试套件，是"这步真的做完了"的硬证据
+   - **机器可读格式**：每个 task 末尾必须有一个 ```acceptance fenced code block，每行一对 `<command> ||| <expect>`（用 ` ||| ` 分隔），reviewer 会按行抽取并执行
+   - 例（一个 task 的 acceptance 块）：
+     ````
+     ```acceptance
+     test -f src/server.js ||| exit 0
+     grep -q "process.env.PORT" src/server.js ||| exit 0
+     curl -s -o /dev/null -w "%{http_code}" http://localhost:$PORT/api/todos ||| 200
+     ```
+     ````
 
 ### 关键原则
 
@@ -94,9 +109,11 @@ Expected: PASS
 `git add ... && git commit -m "feat: ..."`
 
 **Acceptance:**
-- `test -f src/xxx.js` → exit 0
-- `npm test -- xxx` → exit 0, 输出含 "PASS"
-- `curl -s -o /dev/null -w "%{http_code}" http://localhost:$PORT/xxx` → `200`
+```acceptance
+test -f src/xxx.js ||| exit 0
+npm test -- xxx ||| PASS
+curl -s -o /dev/null -w "%{http_code}" http://localhost:$PORT/xxx ||| 200
+```
 
 ### Task 2: [下一个组件]
 ...

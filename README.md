@@ -2,10 +2,29 @@
 
 全自主需求开发程序 — 输入需求，自动完成从规划到部署的全流程。支持 Claude Code 和 OpenAI Codex 两种 AI 后端。
 
+## 安装
+
+```bash
+# 一键安装为系统命令 `phantom`
+./install.sh
+
+# 自定义安装路径
+./install.sh /opt/bin/phantom
+
+# 卸载
+./install.sh --uninstall
+```
+
+安装脚本会把 `phantom.sh` 软链到 `/usr/local/bin/phantom`（或 `~/.local/bin/phantom`），之后在**任何目录**都能直接调用 `phantom`。生成的项目会落在**当前工作目录**下，而不是 phantom 仓库里。
+
 ## 使用方法
 
 ```bash
-# 从需求文件启动
+# 安装后在任意目录使用（项目生成在 $PWD 下）
+cd ~/workspace
+phantom requirements.md          # → ~/workspace/<auto-name>/
+
+# 不安装也可以直接用仓库里的脚本，同样落在 $PWD
 ./phantom.sh requirements.md
 
 # 直接输入需求文本
@@ -147,17 +166,30 @@ projects/todo-api/
 |------|------------|--------------|
 | 执行 | `claude -p` | `codex exec` |
 | 跳过权限 | `--dangerously-skip-permissions` | `--dangerously-bypass-approvals-and-sandbox` |
-| 接续会话 | `-c` | `resume --last` |
-| Plan 模式 | `--permission-mode plan` | 提示词注入 |
+| Plan 阶段约束 | 提示词约定 | 提示词注入 |
 | 流式输出 | `stream-json` | `--json` (JSONL) |
 
-默认使用 Claude，通过第一个参数切换：
+> 注：Plan 阶段**没有**使用 Claude 的 `--permission-mode plan`。两种后端的"只允许写 `.phantom/plan.md`"约束都靠 `prompts/plan.md` 顶部的强约定执行，调度器只检查文件是否生成。这是刻意选择——保持两个后端流程对称。
+
+devtest 阶段全程使用**干净上下文**（不带 `-c` / 不 `resume --last`），跨轮信息靠 `.phantom/` 下的交接文件传递，详见下方"核心机制"。
+
+默认使用 Claude，通过第一个参数切换；也可以让 generator 和 reviewer 用不同后端：
 
 ```bash
-./phantom.sh claude requirements.md   # Claude Code
-./phantom.sh codex requirements.md    # OpenAI Codex
-./phantom.sh requirements.md          # 默认 Claude
+./phantom.sh claude requirements.md          # 全部用 Claude
+./phantom.sh codex requirements.md           # 全部用 Codex
+./phantom.sh requirements.md                 # 默认 Claude
+
+# 混合后端（打破"同模型自检"幻觉）
+PHANTOM_GENERATOR_BACKEND=codex \
+PHANTOM_REVIEWER_BACKEND=claude \
+  ./phantom.sh requirements.md
+
+# 严格模式：任意阶段达到最大轮次直接失败，不强制推进
+./phantom.sh --strict requirements.md
 ```
+
+后端选择优先级：`PHANTOM_<ROLE>_BACKEND` → `PHANTOM_BACKEND` → `claude`。角色：`generator` / `reviewer` / `plan` / `deploy`。
 
 ## 依赖
 

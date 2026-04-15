@@ -93,3 +93,33 @@ advance_phase() {
 state_exists() {
   [[ -f "$STATE_FILE" ]]
 }
+
+# ── Reviewer verdict / 校验 ──────────────────────────────
+
+last_review_valid_json() {
+  [[ -f "$LAST_REVIEW_FILE" ]] && jq empty "$LAST_REVIEW_FILE" 2>/dev/null
+}
+
+read_review_verdict() {
+  if ! last_review_valid_json; then
+    echo "invalid"
+    return
+  fi
+  jq -r '.verdict // "none"' "$LAST_REVIEW_FILE" 2>/dev/null || echo "invalid"
+}
+
+reset_last_review() {
+  printf '{"verdict":"none","failures":[],"evidence":[],"stage":""}\n' > "$LAST_REVIEW_FILE"
+}
+
+# ── Forced advance 标记（达到最大轮次但非 strict 模式时） ──
+
+mark_forced_advance() {
+  local phase="$1"
+  set_state ".phases.${phase}.forced_advance" "true"
+}
+
+list_forced_phases() {
+  jq -r '.phases | to_entries[] | select(.value.forced_advance == true) | .key' \
+    "$STATE_FILE" 2>/dev/null
+}
