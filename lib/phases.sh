@@ -301,15 +301,190 @@ $issues_section
 EOF
 }
 
-# ── 阶段 4：deploy ────────────────────────────────────
+# ── 阶段 4：deploy（docker build/run + shell 四项确定性判断） ──
+#
+# 返回：0 = pass，1 = fail（自试 2 次都失败后写 return-packet）
 run_deploy_phase() {
   local work_dir="$1" feature_slug="$2"
-  log_phase "阶段 4/5: deploy（feature=$feature_slug）"
   set_phase_status "deploy" "in_progress"
+  increment_iteration "deploy"
+  local iter
+  iter=$(get_phase_iteration "deploy")
+  log_phase "阶段 4/5: deploy（feature=$feature_slug, iter=$iter）"
 
-  # TODO Step 5: 实现 docker build/run + shell 四项确定性判断 + 自试 2 次
-  log_error "run_deploy_phase 尚未实现（Step 5）"
+  local port
+  port=$(cat "$PORT_FILE" 2>/dev/null || echo 8080)
+
+  # 自试 2 次
+  local attempt=0
+  local max_attempts=2
+  local deploy_err=""
+
+  while [[ $attempt -lt $max_attempts ]]; do
+    attempt=$((attempt + 1))
+    log_info "Deploy attempt ${attempt}/${max_attempts}"
+
+    local log_file="$LOG_DIR/deploy-iter${iter}-attempt${attempt}.log"
+    local prompt_file
+    local extra_note=""
+    if [[ -n "$deploy_err" ]]; then
+      extra_note="⚠️ 上次 docker build/run/smoke 失败，错误如下（请据此修 Dockerfile 或 docker-compose.yml）：
+
+$deploy_err"
+    fi
+
+    PHANTOM_FEATURE="$feature_slug" PHANTOM_EXTRA_NOTE="$extra_note" \
+      prompt_file=$(render_prompt "$SCRIPT_DIR/prompts/deploy.md" "$work_dir")
+    ai_run deploy "$(cat "$prompt_file")" "$log_file"
+    rm -f "$prompt_file"
+
+    # Shell 侧四项确定性判断
+    deploy_err=""
+    if ! [[ -f "Dockerfile" ]]; then
+      deploy_err="Dockerfile 不存在"
+      log_warn "$deploy_err"
+      continue
+    fi
+
+    local container_name="phantom-test-$(basename "$work_dir")"
+    # 清理可能残留的旧容器
+    docker rm -f "$container_name" >/dev/null 2>&1 || true
+
+    # 1. docker build
+    log_info "[1/4] docker build"
+    if ! docker build -t "$container_name" . >>"$log_file" 2>&1; then
+      deploy_err="docker build 失败（见日志 $log_file）"
+      log_warn "$deploy_err"
+      continue
+    fi
+
+    # 2. docker run
+    log_info "[2/4] docker run"
+    if ! docker run -d --name "$container_name" -e "PORT=$port" -p "$port:$port" "$container_name" >>"$log_file" 2>&1; then
+      deploy_err="docker run 失败（见日志 $log_file）"
+      log_warn "$deploy_err"
+      docker rm -f "$container_name" >/dev/null 2>&1 || true
+      continue
+    fi
+
+    # 3. 等容器进入 running 状态（最多 60s）
+    log_info "[3/4] 等待容器 running"
+    local waited=0
+    local running=false
+    while [[ $waited -lt 60 ]]; do
+      if docker ps --filter "name=^${container_name}$" --filter "status=running" --format '{{.Names}}' | grep -q "^${container_name}$"; then
+        running=true
+        break
+      fi
+      sleep 2
+      waited=$((waited + 2))
+    done
+
+    if [[ "$running" != true ]]; then
+      deploy_err="容器 60s 内未进入 running 状态"
+      docker logs "$container_name" >>"$log_file" 2>&1 || true
+      log_warn "$deploy_err"
+      docker rm -f "$container_name" >/dev/null 2>&1 || true
+      continue
+    fi
+
+    # 额外给应用 3s 启动时间
+    sleep 3
+
+    # 4. Smoke：对每个 API 端点跑 happy path curl，要求非 5xx
+    log_info "[4/4] Smoke 测试所有 API 端点"
+    local smoke_failures=""
+    local endpoints
+    endpoints=$(_extract_endpoints_from_plan)
+    if [[ -z "$endpoints" ]]; then
+      log_warn "从 plan 中未提取到 API 端点，仅验证根路径"
+      endpoints="GET /"
+    fi
+
+    while IFS= read -r ep; do
+      [[ -z "$ep" ]] && continue
+      local method path
+      method=$(echo "$ep" | awk '{print $1}')
+      path=$(echo "$ep" | awk '{print $2}')
+      local url="http://localhost:${port}${path}"
+      local code
+      code=$(curl -s -o /dev/null -w '%{http_code}' -X "$method" --max-time 10 "$url" 2>/dev/null || echo "000")
+      echo "    [$method $path] → HTTP $code" >>"$log_file"
+      if [[ "$code" =~ ^5[0-9][0-9]$ ]] || [[ "$code" == "000" ]]; then
+        smoke_failures+="$method $path → $code
+"
+      fi
+    done <<< "$endpoints"
+
+    # 清理容器
+    docker stop "$container_name" >/dev/null 2>&1 || true
+    docker rm "$container_name" >/dev/null 2>&1 || true
+
+    if [[ -n "$smoke_failures" ]]; then
+      deploy_err="Smoke 测试失败：
+$smoke_failures"
+      log_warn "$deploy_err"
+      continue
+    fi
+
+    log_ok "Deploy 通过：docker build/run/smoke 全绿"
+    set_phase_status "deploy" "completed"
+    return 0
+  done
+
+  # 2 次自试都失败 → 写 return-packet 回 dev
+  log_error "Deploy 自试 $max_attempts 次后仍失败"
+  _write_deploy_return_packet "$feature_slug" "$iter" "$deploy_err"
+  set_phase_status "deploy" "failed"
   return 1
+}
+
+# 从 plan.locked.md 第 4 节提取 API 端点
+# 简单启发式：匹配 `GET /api/xxx` / `POST /xxx` 这种模式
+_extract_endpoints_from_plan() {
+  [[ -f "$PLAN_LOCKED_FILE" ]] || return
+  awk '
+    /^## 4\. / { in_section=1; next }
+    /^## [0-9]/ { in_section=0 }
+    in_section {
+      # 匹配类似 `GET /api/todos` 的 pattern
+      if (match($0, /(GET|POST|PUT|PATCH|DELETE|HEAD)[[:space:]]+\/[^ \t`]*/)) {
+        s = substr($0, RSTART, RLENGTH)
+        print s
+      }
+    }
+  ' "$PLAN_LOCKED_FILE" | sort -u
+}
+
+_write_deploy_return_packet() {
+  local feature_slug="$1" iter="$2" err="$3"
+  local timestamp
+  timestamp=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+
+  cat > "$RETURN_PACKET_FILE" <<EOF
+---
+return_from: deploy
+iteration: $iter
+feature: $feature_slug
+triggered_at: $timestamp
+---
+
+## 为什么回来
+
+Deploy 自试 2 次后仍失败。可能是 Dockerfile 问题，也可能是源代码有问题（启动后崩溃或返回 5xx）。
+
+## 必修项（硬性，dev 必须全部修掉）
+
+- [deploy] $err
+
+## 建议项（软性，dev 自行判断改不改）
+
+- （无）
+
+## 全量报告
+
+- \`.phantom/logs/deploy-iter${iter}-attempt*.log\`
+EOF
 }
 
 # ── 阶段 5：test ──────────────────────────────────────
