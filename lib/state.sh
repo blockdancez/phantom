@@ -10,6 +10,17 @@ PROGRESS_FILE="$STATE_DIR/progress.md"
 OPEN_ISSUES_FILE="$STATE_DIR/open-issues.md"
 FILE_MAP_FILE="$STATE_DIR/file-map.md"
 LAST_REVIEW_FILE="$STATE_DIR/last-review.json"
+PORT_FILE="$STATE_DIR/port"
+
+# 分配一个空闲端口并持久化到 .phantom/port
+# 已存在就直接读取；调用方可用 `export PORT=$(ensure_port)` 注入
+ensure_port() {
+  mkdir -p "$STATE_DIR"
+  if [[ ! -s "$PORT_FILE" ]]; then
+    python3 -c "import socket;s=socket.socket();s.bind(('',0));print(s.getsockname()[1]);s.close()" > "$PORT_FILE"
+  fi
+  cat "$PORT_FILE"
+}
 
 ensure_handoff_files() {
   mkdir -p "$STATE_DIR"

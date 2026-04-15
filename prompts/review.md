@@ -43,7 +43,8 @@
 抽取并执行的参考脚本：
 
 ```bash
-PORT=$(cat .phantom/port 2>/dev/null || python3 -c "import socket;s=socket.socket();s.bind(('',0));print(s.getsockname()[1]);s.close()" | tee .phantom/port)
+# 端口由 phantom 在项目初始化时预分配并持久化
+PORT=$(cat .phantom/port)
 export PORT
 
 # 用 awk 抽出所有 ```acceptance 代码块的内容
@@ -80,7 +81,7 @@ done < /tmp/acceptance.txt
 - "AI slop"：注释解释显然的代码、变量名通用（data/result/temp）、无意义抽象层
 - 前端没有遵循 design-guide 的品牌设计（默认 Bootstrap/Tailwind 灰底蓝按钮 reject）
 - 后端没有结构化日志（出现 print/console.log reject）
-- 端口硬编码（没有 `process.env.PORT || ...`）
+- 端口硬编码写死 3000/8080 等常见值（应从 `PORT` 读取，默认值用 `.phantom/port` 里的那个）
 - 项目用了 SQLite / MySQL / JSON 文件充当数据库（必须 PostgreSQL + postgres MCP，连接串从 `DATABASE_URL` 读）
 - 测试只测 happy path，不覆盖错误路径（`test_quality` 阶段重点）
 

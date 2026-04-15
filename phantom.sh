@@ -298,6 +298,17 @@ else
 
   init_state "$REQ_FILE" "$PROJECT_DIR"
   log_ok "状态已初始化"
+
+  PORT=$(ensure_port)
+  export PORT
+  log_info "已分配端口: $PORT (持久化到 .phantom/port)"
+fi
+
+# Resume / 新项目 都需要把 PORT 注入环境，供后续所有阶段使用
+if [[ -z "${PORT:-}" ]]; then
+  PORT=$(ensure_port)
+  export PORT
+  log_info "项目端口: $PORT"
 fi
 
 # ── 主循环（状态机） ──────────────────────────────────────

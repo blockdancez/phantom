@@ -22,7 +22,7 @@ render_prompt() {
   output_file=$(mktemp)
 
   local state_req_file requirements="" plan=""
-  local progress="" open_issues="" file_map="" last_review=""
+  local progress="" open_issues="" file_map="" last_review="" port=""
   state_req_file=$(get_state '.requirements_file')
   [[ -f "$state_req_file" ]]           && requirements=$(cat "$state_req_file")
   [[ -f ".phantom/plan.md" ]]          && plan=$(cat ".phantom/plan.md")
@@ -30,6 +30,7 @@ render_prompt() {
   [[ -f ".phantom/open-issues.md" ]]   && open_issues=$(cat ".phantom/open-issues.md")
   [[ -f ".phantom/file-map.md" ]]      && file_map=$(cat ".phantom/file-map.md")
   [[ -f ".phantom/last-review.json" ]] && last_review=$(cat ".phantom/last-review.json")
+  [[ -f ".phantom/port" ]]             && port=$(cat ".phantom/port")
 
   TPL_REQUIREMENTS="$requirements" \
   TPL_PLAN="$plan" \
@@ -41,6 +42,7 @@ render_prompt() {
   TPL_EXTRA_NOTE="${PHANTOM_EXTRA_NOTE:-}" \
   TPL_PROJECT_DIR="$work_dir" \
   TPL_HOME="$HOME" \
+  TPL_PORT="$port" \
   TPL_TEMPLATE="$template_file" \
   TPL_OUTPUT="$output_file" \
   python3 - <<'PYEOF'
@@ -56,6 +58,7 @@ mapping = {
     '{{EXTRA_NOTE}}':   os.environ['TPL_EXTRA_NOTE'],
     '{{PROJECT_DIR}}':  os.environ['TPL_PROJECT_DIR'],
     '{{HOME}}':         os.environ['TPL_HOME'],
+    '{{PORT}}':         os.environ['TPL_PORT'],
 }
 content = open(os.environ['TPL_TEMPLATE']).read()
 for k, v in mapping.items():

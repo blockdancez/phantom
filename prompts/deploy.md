@@ -6,6 +6,10 @@
 
 {{PROJECT_DIR}}
 
+## 端口
+
+本项目端口固定为 `{{PORT}}`（预分配，持久化在 `.phantom/port`）。所有 docker 命令中的端口都必须用这个值，**不要**写 8080 / 3000 等。
+
 ## 你的任务
 
 1. **创建 Dockerfile**（如果不存在）
@@ -28,7 +32,7 @@
 
 4. **运行容器**
    ```bash
-   docker run -d --name phantom-test -p 8080:8080 phantom-project
+   docker run -d --name phantom-test -e PORT={{PORT}} -p {{PORT}}:{{PORT}} phantom-project
    # 或
    docker compose up -d
    ```
