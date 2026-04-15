@@ -148,7 +148,7 @@ _claude_run_new() {
     --verbose \
     --include-partial-messages \
     "$prompt" \
-    2>&1 | python3 "$STREAM_PARSER" "$log_file"
+    2>&1 | python3 -u "$STREAM_PARSER" "$log_file"
 }
 
 _claude_run_continue() {
@@ -159,7 +159,7 @@ _claude_run_continue() {
     --verbose \
     --include-partial-messages \
     "$prompt" \
-    2>&1 | python3 "$STREAM_PARSER" "$log_file"
+    2>&1 | python3 -u "$STREAM_PARSER" "$log_file"
 }
 
 _codex_run_new() {
@@ -169,7 +169,7 @@ _codex_run_new() {
     --json \
     -o "$log_file" \
     "$prompt" \
-    2>&1 | python3 "$STREAM_PARSER" "$log_file" codex
+    2>&1 | python3 -u "$STREAM_PARSER" "$log_file" codex
 }
 
 _codex_run_continue() {
@@ -179,7 +179,7 @@ _codex_run_continue() {
     --json \
     -o "$log_file" \
     "$prompt" \
-    2>&1 | python3 "$STREAM_PARSER" "$log_file" codex
+    2>&1 | python3 -u "$STREAM_PARSER" "$log_file" codex
 }
 
 # ── 统一调用接口 ────────────────────────────────────────
@@ -219,12 +219,13 @@ ai_run() {
   local role="$1" prompt="$2" log_file="$3"
   local b
   b=$(resolve_backend "$role")
-  log_info "后端[$role]: $b"
 
   local mode="new"
   if _session_started "$role" "$b"; then
     mode="continue"
   fi
+
+  log_info "→ $role ($b, $mode)  开始调用，首次输出可能需要 10-30 秒"
 
   case "$b" in
     claude)
@@ -257,7 +258,7 @@ ai_run_oneshot() {
   local role="$1" prompt="$2" log_file="$3"
   local b
   b=$(resolve_backend "$role")
-  log_info "后端[$role]: $b (oneshot)"
+  log_info "→ $role ($b)  开始调用，首次输出可能需要 10-30 秒"
   case "$b" in
     claude) _claude_run_new "$prompt" "$log_file" ;;
     codex)  _codex_run_new  "$prompt" "$log_file" ;;

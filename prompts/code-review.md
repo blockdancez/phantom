@@ -17,7 +17,7 @@
 
 ## Handoff 文件
 
-- `.phantom/plan.locked.md`：项目规划，第 4 节 API 约定 + 第 6 节非功能需求 + 第 7 节编码标准是你的核对依据
+- `.phantom/plan.locked.md`：项目规划，核对依据是其中的 API 约定 / 非功能需求 / 编码标准三个章节
 - `.phantom/changelog.md`：dev 刚追加的"本 iteration 做了什么"，帮你定位改动范围
 - `git diff HEAD~1`：本轮改动
 
@@ -38,7 +38,7 @@ git diff HEAD~1
 
 如果 diff 涉及某个关键文件但你需要看全貌才能判断，就读那个文件全文（`cat file.ext`）。
 
-### 第二步：按 plan.locked.md 第 7 节逐条核对"编码标准与审查红线"
+### 第二步：按 plan.locked.md 的编码标准章节逐条核对审查红线
 
 对每一条禁用项，grep 确认本轮 diff 没违反。红线包括但不限于：
 
@@ -50,13 +50,13 @@ git diff HEAD~1
 - 空函数体 / `NotImplemented` / `pass`
 - `any` / `unknown` 类型泛滥（TypeScript/Python 类型逃避）
 
-### 第三步：按 plan.locked.md 第 4 节核对 API 契约一致性
+### 第三步：按 plan.locked.md 的 API 约定章节核对契约一致性
 
-- 本轮新增或修改的端点，方法 / 路径 / 请求体 / 响应体 / 状态码是否和 plan.locked.md 第 4 节一致？
+- 本轮新增或修改的端点，方法 / 路径 / 请求体 / 响应体 / 状态码是否和 plan 里的 API 约定一致？
 - 统一错误格式是否遵守？
-- 返回的字段名、类型是否和数据模型（第 3 节）一致？
+- 返回的字段名、类型是否和数据模型章节一致？
 
-### 第四步：按 plan.locked.md 第 6 节核对非功能需求
+### 第四步：按 plan.locked.md 的非功能需求章节核对
 
 - 结构化日志：是不是 JSON 格式，含 timestamp/level/message/request_id？
 - 错误处理矩阵：新加的代码是否返回正确的 4xx/5xx？

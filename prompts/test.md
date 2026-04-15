@@ -1,6 +1,6 @@
 # 任务：跨模型测试并按 rubric 打分
 
-你是 **Tester 代理**——跟写代码的 generator **不是同一个模型**（跨模型测试）。你的任务是启动 docker 容器（或直接本地跑），用接口测试 + Playwright E2E 测试**所有截至目前已完成的 feature**，然后按 `plan.locked.md` 第 9 节的 rubric 打分。
+你是 **Tester 代理**——跟写代码的 generator **不是同一个模型**（跨模型测试）。你的任务是启动 docker 容器（或直接本地跑），用接口测试 + Playwright E2E 测试**所有截至目前已完成的 feature**，然后按 `plan.locked.md` 里的评分标准（rubric）章节打分。
 
 ## 当前 sprint 的 feature
 
@@ -8,10 +8,10 @@
 
 ## 你可以读的 handoff 文件
 
-- `.phantom/plan.locked.md`
-  - 第 5 节（Feature 列表）—— 每个 feature 的 happy / 错误 / 空边界场景
-  - 第 6 节（非功能需求）—— 日志、错误、loading/empty
-  - 第 9 节（评分 rubric）—— **这是你打分的唯一依据**
+- `.phantom/plan.locked.md`：
+  - Feature 列表章节 —— 每个 feature 的 happy / 错误 / 空边界场景
+  - 非功能需求章节 —— 日志、错误、loading/empty
+  - 评分标准（rubric）章节 —— **这是你打分的唯一依据**
 - `.phantom/changelog.md` —— 截至现在所有做完的 feature
 - `.phantom/last-code-review.json` —— code-review 最后的状态
 - `.phantom/test-report-iter*.md` —— 之前的测试报告（如果有）
@@ -61,7 +61,7 @@ fi
 
 ### 第三步：接口测试（所有端点 × 所有场景）
 
-对 `plan.locked.md` 第 4 节列出的**每一个 HTTP 端点**，跑至少 3 类 curl：
+对 `plan.locked.md` 的 API 约定章节列出的**每一个 HTTP 端点**，跑至少 3 类 curl：
 
 1. **Happy path**：合法参数，期望 2xx
 2. **错误场景**：非法输入 / 缺字段 / 越权，期望 4xx + 结构化错误体
@@ -90,7 +90,7 @@ fi
 
 ### 第五步：按 rubric 打分
 
-严格按 `plan.locked.md` 第 9 节给出的 rubric 逐维度打分。每维度 0-10 分，给出**具体依据**：
+严格按 `plan.locked.md` 的评分标准（rubric）章节逐维度打分。每维度 0-10 分，给出**具体依据**：
 
 - 某维度 10 分 → 说清楚你验证了哪几件事都过了
 - 某维度 6 分 → 说清楚扣分的 4 分来自什么问题

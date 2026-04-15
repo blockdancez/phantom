@@ -6,11 +6,11 @@
 
 **{{FEATURE}}**
 
-请在 `.phantom/plan.locked.md` 的第 5 节里找到对应的 `### {{FEATURE}}` 章节，严格按照那里的 user story / happy path / 错误场景 / 空边界场景实现。
+请在 `.phantom/plan.locked.md` 的 Feature 列表章节里找到对应的 `### {{FEATURE}}` 小节，严格按照那里的 user story / happy path / 错误场景 / 空边界场景实现。
 
 ## 你可以查阅的 handoff 文件（按需读）
 
-- `.phantom/plan.locked.md` —— 项目完整规划（9 节）。**重点看第 2, 3, 4, 5, 6, 7, 8 节**
+- `.phantom/plan.locked.md` —— 项目完整规划。**重点看除评分标准之外的所有章节**
 - `.phantom/changelog.md` —— 之前所有 dev round 做过的事（兜底，compaction 应该让你记得，这是保险）
 - `.phantom/return-packet.md` —— **如果是从 test/code-review/deploy 失败回流的**，这里写着必修项，**优先修这些再做新功能**
 
@@ -38,7 +38,7 @@ dev phase 只做"单元层面的自证"：**功能代码 + 单元测试 + 静态
 
 ### 1. 实现当前 feature 的代码
 
-按 plan.locked.md 第 5 节对应 feature 的规格写代码，包括：
+按 plan.locked.md 的 Feature 列表章节对应 feature 的规格写代码，包括：
 - Happy path 的主逻辑
 - 所有错误场景的处理代码（400/401/403/404/500 返回）
 - 空/边界场景的处理代码（空列表、分页越界、超长字符串）

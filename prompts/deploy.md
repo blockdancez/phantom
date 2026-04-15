@@ -16,8 +16,8 @@
 
 ## 规划参考
 
-- `.phantom/plan.locked.md` 第 8 节「部署配置」给出了 base image 建议 / 环境变量清单 / 迁移策略
-- `.phantom/plan.locked.md` 第 2 节给出了技术栈
+- `.phantom/plan.locked.md` 的部署配置章节给出 base image 建议 / 环境变量清单 / 迁移策略
+- `.phantom/plan.locked.md` 的技术栈章节给出技术栈
 - `.phantom/changelog.md` 列出了已实现的 feature
 
 {{EXTRA_NOTE}}

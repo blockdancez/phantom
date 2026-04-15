@@ -23,14 +23,14 @@ run_plan_phase() {
   set_phase_status "plan" "in_progress"
 
   # ── R1: Planner 写初稿 ───────────────────────────
-  log_info "Plan R1: Planner 起草 plan.md（9 节）"
+  log_info "Plan R1: Planner 起草 plan.md"
   local r1_attempt=0
   local r1_max=3
   while [[ $r1_attempt -lt $r1_max ]]; do
     r1_attempt=$((r1_attempt + 1))
     local r1_extra=""
     if [[ $r1_attempt -gt 1 ]]; then
-      r1_extra="⚠️ 上次尝试没有生成 .phantom/plan.md。请**直接用 Write 工具**把完整 9 节计划写入 .phantom/plan.md，不要先解释、不要先列大纲。不得碰其他文件。"
+      r1_extra="⚠️ 上次尝试没有生成 .phantom/plan.md 或缺少必需章节。请直接用 Write 工具把完整 plan 写入 .phantom/plan.md（必须至少包含产品目标、Feature 列表、API 约定、评分标准四个核心章节），不要先解释、不要先列大纲。不得碰其他文件。"
     fi
 
     local prompt_file
@@ -39,14 +39,14 @@ run_plan_phase() {
     ai_run_oneshot generator "$(cat "$prompt_file")" "$LOG_DIR/plan-r1-attempt${r1_attempt}.log"
     rm -f "$prompt_file"
 
-    if [[ -f "$PLAN_FILE" ]] && _plan_has_all_9_sections; then
-      log_ok "Plan R1 通过：plan.md 9 节齐全"
+    if [[ -f "$PLAN_FILE" ]] && _plan_has_required_sections; then
+      log_ok "Plan R1 通过：plan.md 核心章节齐全"
       break
     fi
-    log_warn "Plan R1 第 $r1_attempt 次未产出合格 plan.md（9 节不齐或文件缺失）"
+    log_warn "Plan R1 第 $r1_attempt 次未产出合格 plan.md（核心章节缺失或文件不存在）"
   done
 
-  if ! [[ -f "$PLAN_FILE" ]] || ! _plan_has_all_9_sections; then
+  if ! [[ -f "$PLAN_FILE" ]] || ! _plan_has_required_sections; then
     log_error "Plan R1 经过 $r1_max 次尝试仍未产出合格 plan.md"
     set_phase_status "plan" "failed"
     exit 1
@@ -73,15 +73,15 @@ run_plan_phase() {
 $(cat "$PLAN_REVIEW_COMMENTS_FILE")
 --- end comments ---
 
-请重写 .phantom/plan.md（保持 9 节结构），把你决定采纳的修改落实到位。对于忽略的建议，在对应章节末尾加一行 \"> R2 建议: ...，未采纳原因: ...\" 的 quote。"
+请重写 .phantom/plan.md，把你决定采纳的修改落实到位。章节数不用执着——核心章节（产品目标、Feature 列表、API 约定、评分标准）必须保留，其他章节可按项目实际情况增删合并。对于忽略的建议，在对应章节末尾加一行 \"> R2 建议: ...，未采纳原因: ...\" 的 quote。"
 
   PHANTOM_EXTRA_NOTE="$r3_extra" \
     prompt_file=$(render_prompt "$SCRIPT_DIR/prompts/plan.md" "$work_dir")
   ai_run_oneshot generator "$(cat "$prompt_file")" "$LOG_DIR/plan-r3.log"
   rm -f "$prompt_file"
 
-  if ! [[ -f "$PLAN_FILE" ]] || ! _plan_has_all_9_sections; then
-    log_error "Plan R3 产出的 plan.md 仍不合格（9 节不齐）"
+  if ! [[ -f "$PLAN_FILE" ]] || ! _plan_has_required_sections; then
+    log_error "Plan R3 产出的 plan.md 仍不合格（核心章节缺失）"
     set_phase_status "plan" "failed"
     exit 1
   fi
@@ -94,7 +94,7 @@ $(cat "$PLAN_REVIEW_COMMENTS_FILE")
   local feature_count
   feature_count=$(count_features)
   if [[ "$feature_count" -lt 5 ]]; then
-    log_error "Plan 第 5 节 feature 数量 $feature_count < 5（下游 feature-per-sprint 无法启动）"
+    log_error "Plan feature 列表数量 $feature_count < 5（下游 feature-per-sprint 无法启动）"
     set_phase_status "plan" "failed"
     exit 1
   fi
@@ -105,24 +105,21 @@ $(cat "$PLAN_REVIEW_COMMENTS_FILE")
   return 0
 }
 
-# 检查 plan.md 是否包含 9 个预期章节
-_plan_has_all_9_sections() {
+# 检查 plan.md 是否包含下游必需的 4 个核心章节（按关键字，不限编号）
+# 核心章节是下游 phase 机械化消费的：
+#   - 产品目标（CLAUDE.md 生成时用）
+#   - Feature 列表（dev / test 消费）
+#   - API 约定（deploy smoke curl 消费）
+#   - 评分标准/rubric（test 打分依据）
+# 其他章节（技术栈、数据模型、非功能、编码标准、部署配置）虽然重要但 AI 会按需自己展开，
+# 不做硬校验以免过度约束 planner。
+_plan_has_required_sections() {
   [[ -f "$PLAN_FILE" ]] || return 1
-  local expected=(
-    '## 1\. 产品目标'
-    '## 2\. 技术栈与架构'
-    '## 3\. 数据模型'
-    '## 4\. API 约定'
-    '## 5\. Feature 列表'
-    '## 6\. 非功能需求'
-    '## 7\. 编码标准与审查红线'
-    '## 8\. 部署配置'
-    '## 9\. 验收评分标准'
-  )
-  local h
-  for h in "${expected[@]}"; do
-    grep -q "^$h" "$PLAN_FILE" || return 1
-  done
+  # 关键字（正则），每条至少命中一个 H2 标题
+  grep -Eq '^##[^#].*产品目标' "$PLAN_FILE" || return 1
+  grep -Eq '^##[^#].*(Feature|功能)[^#]*(列表|List)' "$PLAN_FILE" || return 1
+  grep -Eq '^##[^#].*(API|接口).*(约定|规范)?' "$PLAN_FILE" || return 1
+  grep -Eq '^##[^#].*(评分|rubric|Rubric|验收标准)' "$PLAN_FILE" || return 1
   return 0
 }
 
@@ -439,15 +436,14 @@ $smoke_failures"
   return 1
 }
 
-# 从 plan.locked.md 第 4 节提取 API 端点
-# 简单启发式：匹配 `GET /api/xxx` / `POST /xxx` 这种模式
+# 从 plan.locked.md 的 API 章节提取端点
+# 按关键字匹配章节；匹配 "METHOD /path" 格式
 _extract_endpoints_from_plan() {
   [[ -f "$PLAN_LOCKED_FILE" ]] || return
   awk '
-    /^## 4\. / { in_section=1; next }
-    /^## [0-9]/ { in_section=0 }
+    /^##[^#].*(API|接口).*(约定|规范)?/ { in_section=1; next }
+    /^##[^#]/ { in_section=0 }
     in_section {
-      # 匹配类似 `GET /api/todos` 的 pattern
       if (match($0, /(GET|POST|PUT|PATCH|DELETE|HEAD)[[:space:]]+\/[^ \t`]*/)) {
         s = substr($0, RSTART, RLENGTH)
         print s
@@ -581,21 +577,20 @@ Test 评分 ${score}/100，低于阈值 80。$reason
 EOF
 }
 
-# ── Feature 列表读取（从 plan.locked.md 第 5 节） ──────
-# 返回 feature slug 列表（一行一个）
+# ── Feature 列表读取（从 plan.locked.md 的 Feature 章节） ──────
+# 按关键字匹配章节（不依赖编号）；feature slug 必须形如 "feature-<N>-<name>"
 list_features_from_plan() {
   [[ -f "$PLAN_LOCKED_FILE" ]] || return 1
-  # 第 5 节标题匹配："## 5. Feature 列表" 或 "## 5." 开头
   awk '
-    /^## 5\. / { in_section=1; next }
-    /^## [0-9]/ { in_section=0 }
+    /^##[^#].*(Feature|功能).*(列表|List)/ { in_section=1; next }
+    /^##[^#]/ { in_section=0 }
     in_section && /^### / {
-      # feature slug 从 "### feature-N: Title" 提取
       slug = $0
       gsub(/^### /, "", slug)
       gsub(/:.*$/, "", slug)
       gsub(/^[[:space:]]+|[[:space:]]+$/, "", slug)
-      if (slug != "") print slug
+      # 只接受严格格式 feature-N-slug（下游 shell 解析依赖）
+      if (slug ~ /^feature-[0-9]+-[a-z0-9][-a-z0-9]*$/) print slug
     }
   ' "$PLAN_LOCKED_FILE"
 }

@@ -447,7 +447,7 @@ $(echo "$forced_list" | sed 's/^/- /')
 6. **未达标 feature（如有）**：${forced_note:-（无）}
 7. **「项目历史与 AI 记忆」章节（必写）**——告诉未来读这个文件的 AI 助手：
    - 本项目由 phantom AutoDev 生成
-   - \`.phantom/plan.locked.md\` 是原始完整规划（9 节）
+   - \`.phantom/plan.locked.md\` 是原始完整规划
    - \`.phantom/changelog.md\` 是每轮 dev 的追加记录
    - \`.phantom/test-report-iter*.md\` 是每轮 test 的评分报告
    - \`.phantom/port\` 是本项目预分配端口
