@@ -26,7 +26,7 @@ run_generator_round() {
   [[ -f "$PROGRESS_FILE" ]] && progress_after=$(wc -l < "$PROGRESS_FILE" | tr -d ' ')
 
   if [[ "$progress_after" -le "$progress_before" ]]; then
-    log_warn "[$label] generator 未更新 progress.md（$progress_before → $progress_after），触发补救轮"
+    log_warn "[${label}] generator 未更新 progress.md（${progress_before} → ${progress_after}），触发补救轮"
     local fix_prompt
     fix_prompt=$(mktemp)
     cat > "$fix_prompt" <<'EOF'
