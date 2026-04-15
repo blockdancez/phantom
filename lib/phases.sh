@@ -21,9 +21,108 @@ run_plan_phase() {
   log_phase "阶段 1/5: plan（plan → plan-review → plan → 落锁）"
   set_phase_status "plan" "in_progress"
 
-  # TODO Step 2: 实现 R1/R2/R3 三 round 逻辑 + 落锁 plan.locked.md
-  log_error "run_plan_phase 尚未实现（Step 2）"
-  return 1
+  # ── R1: Planner 写初稿 ───────────────────────────
+  log_info "Plan R1: Planner 起草 plan.md（9 节）"
+  local r1_attempt=0
+  local r1_max=3
+  while [[ $r1_attempt -lt $r1_max ]]; do
+    r1_attempt=$((r1_attempt + 1))
+    local r1_extra=""
+    if [[ $r1_attempt -gt 1 ]]; then
+      r1_extra="⚠️ 上次尝试没有生成 .phantom/plan.md。请**直接用 Write 工具**把完整 9 节计划写入 .phantom/plan.md，不要先解释、不要先列大纲。不得碰其他文件。"
+    fi
+
+    local prompt_file
+    PHANTOM_EXTRA_NOTE="$r1_extra" \
+      prompt_file=$(render_prompt "$SCRIPT_DIR/prompts/plan.md" "$work_dir")
+    ai_run_oneshot generator "$(cat "$prompt_file")" "$LOG_DIR/plan-r1-attempt${r1_attempt}.log"
+    rm -f "$prompt_file"
+
+    if [[ -f "$PLAN_FILE" ]] && _plan_has_all_9_sections; then
+      log_ok "Plan R1 通过：plan.md 9 节齐全"
+      break
+    fi
+    log_warn "Plan R1 第 $r1_attempt 次未产出合格 plan.md（9 节不齐或文件缺失）"
+  done
+
+  if ! [[ -f "$PLAN_FILE" ]] || ! _plan_has_all_9_sections; then
+    log_error "Plan R1 经过 $r1_max 次尝试仍未产出合格 plan.md"
+    set_phase_status "plan" "failed"
+    exit 1
+  fi
+
+  # ── R2: Plan reviewer 审查 ─────────────────────
+  log_info "Plan R2: Plan-reviewer 审查 rubric（跨模型，只提建议无否决权）"
+  local prompt_file
+  prompt_file=$(render_prompt "$SCRIPT_DIR/prompts/plan-review.md" "$work_dir")
+  ai_run_oneshot plan_reviewer "$(cat "$prompt_file")" "$LOG_DIR/plan-r2.log"
+  rm -f "$prompt_file"
+
+  if ! [[ -f "$PLAN_REVIEW_COMMENTS_FILE" ]]; then
+    log_warn "Plan R2 未产出 review comments，继续 R3（无意见=不改）"
+    printf '# Plan Review Comments\n\n无意见（R2 未产出 comments，降级）\n' > "$PLAN_REVIEW_COMMENTS_FILE"
+  fi
+
+  # ── R3: Planner 根据 comments 修订 ───────────────
+  log_info "Plan R3: Planner 根据 comments 修订 plan.md"
+  local r3_extra
+  r3_extra="这是 Plan 阶段的 R3（最后一轮）。下面是 R2 跨模型 reviewer 的意见，你可以采纳也可以忽略并写理由，但必须重新 Write .phantom/plan.md（即使只是微调）。
+
+--- Reviewer comments ---
+$(cat "$PLAN_REVIEW_COMMENTS_FILE")
+--- end comments ---
+
+请重写 .phantom/plan.md（保持 9 节结构），把你决定采纳的修改落实到位。对于忽略的建议，在对应章节末尾加一行 \"> R2 建议: ...，未采纳原因: ...\" 的 quote。"
+
+  PHANTOM_EXTRA_NOTE="$r3_extra" \
+    prompt_file=$(render_prompt "$SCRIPT_DIR/prompts/plan.md" "$work_dir")
+  ai_run_oneshot generator "$(cat "$prompt_file")" "$LOG_DIR/plan-r3.log"
+  rm -f "$prompt_file"
+
+  if ! [[ -f "$PLAN_FILE" ]] || ! _plan_has_all_9_sections; then
+    log_error "Plan R3 产出的 plan.md 仍不合格（9 节不齐）"
+    set_phase_status "plan" "failed"
+    exit 1
+  fi
+
+  # ── 落锁 ──────────────────────────────────────
+  cp "$PLAN_FILE" "$PLAN_LOCKED_FILE"
+  log_ok "Plan 落锁：.phantom/plan.locked.md 已生成"
+
+  # 校验 feature 列表能被解析
+  local feature_count
+  feature_count=$(count_features)
+  if [[ "$feature_count" -lt 5 ]]; then
+    log_error "Plan 第 5 节 feature 数量 $feature_count < 5（下游 feature-per-sprint 无法启动）"
+    set_phase_status "plan" "failed"
+    exit 1
+  fi
+  log_ok "解析到 $feature_count 个 feature"
+  list_features_from_plan | sed 's/^/  - /'
+
+  set_phase_status "plan" "completed"
+  return 0
+}
+
+# 检查 plan.md 是否包含 9 个预期章节
+_plan_has_all_9_sections() {
+  [[ -f "$PLAN_FILE" ]] || return 1
+  local expected=(
+    '## 1\. 产品目标'
+    '## 2\. 技术栈与架构'
+    '## 3\. 数据模型'
+    '## 4\. API 约定'
+    '## 5\. Feature 列表'
+    '## 6\. 非功能需求'
+    '## 7\. 编码标准与审查红线'
+    '## 8\. 部署配置'
+    '## 9\. 验收评分标准'
+  )
+  local h
+  for h in "${expected[@]}"; do
+    grep -q "^$h" "$PLAN_FILE" || return 1
+  done
+  return 0
 }
 
 # ── 阶段 2：dev（feature-per-sprint 的单次 dev round） ────
