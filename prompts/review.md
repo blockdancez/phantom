@@ -81,6 +81,7 @@ done < /tmp/acceptance.txt
 - 前端没有遵循 design-guide 的品牌设计（默认 Bootstrap/Tailwind 灰底蓝按钮 reject）
 - 后端没有结构化日志（出现 print/console.log reject）
 - 端口硬编码（没有 `process.env.PORT || ...`）
+- 项目用了 SQLite / MySQL / JSON 文件充当数据库（必须 PostgreSQL + postgres MCP，连接串从 `DATABASE_URL` 读）
 - 测试只测 happy path，不覆盖错误路径（`test_quality` 阶段重点）
 
 ```bash
