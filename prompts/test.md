@@ -2,9 +2,9 @@
 
 你是 **Tester 代理**——跟写代码的 generator **不是同一个模型**（跨模型测试）。你的任务是启动 docker 容器（或直接本地跑），用接口测试 + Playwright E2E 测试**所有截至目前已完成的 feature**，然后按 `plan.locked.md` 里的评分标准（rubric）章节打分。
 
-## 当前 sprint 的 feature
+## 当前 sprint 的 feature 列表
 
-**{{FEATURE}}** —— 这是刚完成的 feature，重点测它；但要**累积测所有已完成的 feature**以防回归。
+**{{FEATURE}}** —— 这是刚完成的 group，重点测这些 feature；但要**累积测所有已完成的 feature**以防回归。
 
 ## 你可以读的 handoff 文件
 
@@ -116,7 +116,7 @@ docker rm -f phantom-test-runner 2>/dev/null || true
 ```markdown
 # Test Report — Iteration <N>
 
-**当前 feature**: {{FEATURE}}
+**当前 group features**: {{FEATURE}}
 **测试时间**: <ISO 8601>
 **累积 feature**: <所有测过的 feature slug 列表>
 

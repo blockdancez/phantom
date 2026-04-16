@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # lib/phases.sh - 各阶段执行逻辑（harness v2）
 #
-# 顶层流程：plan → [dev → code_review → deploy → test]（per feature）→ done
+# 顶层流程：plan → [dev → code_review → deploy → test]（per group）→ done
 # 每个函数实现在对应 step 填充。
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -91,15 +91,18 @@ $(cat "$PLAN_REVIEW_COMMENTS_FILE")
   log_ok "Plan 落锁：.phantom/plan.locked.md 已生成"
 
   # 校验 feature 列表能被解析
-  local feature_count
+  local feature_count group_count
   feature_count=$(count_features)
+  group_count=$(count_groups)
   if [[ "$feature_count" -lt 5 ]]; then
-    log_error "Plan feature 列表数量 $feature_count < 5（下游 feature-per-sprint 无法启动）"
+    log_error "Plan feature 列表数量 $feature_count < 5（下游无法启动）"
     set_phase_status "plan" "failed"
     exit 1
   fi
-  log_ok "解析到 $feature_count 个 feature"
-  list_features_from_plan | sed 's/^/  - /'
+  log_ok "解析到 ${group_count} 个 group、${feature_count} 个 feature"
+  list_feature_groups_from_plan | while IFS=: read -r grp feats; do
+    echo "  [$grp] $feats"
+  done
 
   set_phase_status "plan" "completed"
   return 0
@@ -125,23 +128,25 @@ _plan_has_required_sections() {
 
 # ── 阶段 2：dev（单次 dev round，compaction 长会话） ────
 #
-# 调用方（主循环）负责 feature 迭代与 return-packet 传递；
-# 这里只跑一个 dev round——注入当前 feature slug，调用 generator，
+# 调用方（主循环）负责 group 迭代与 return-packet 传递；
+# 这里只跑一个 dev round——注入当前 group 的 feature 列表，调用 generator，
 # 校验 changelog.md 有新条目。
+# $2 = features_csv，逗号分隔的 feature slug 列表
 run_dev_phase() {
-  local work_dir="$1" feature_slug="$2"
+  local work_dir="$1" features_csv="$2"
   set_phase_status "dev" "in_progress"
   increment_iteration "dev"
   local iter
   iter=$(get_phase_iteration "dev")
-  log_phase "阶段 2/5: dev（feature=${feature_slug}, iter=${iter}）"
+  local log_tag="${features_csv//,/_}"
+  log_phase "阶段 2/5: dev（features=${features_csv}, iter=${iter}）"
 
   local changelog_before=0
   [[ -f "$CHANGELOG_FILE" ]] && changelog_before=$(grep -c '^## Iteration ' "$CHANGELOG_FILE" 2>/dev/null || echo 0)
 
-  local log_file="$LOG_DIR/dev-iter${iter}-${feature_slug}.log"
+  local log_file="$LOG_DIR/dev-iter${iter}-${log_tag}.log"
   local prompt_file
-  PHANTOM_FEATURE="$feature_slug" \
+  PHANTOM_FEATURE="$features_csv" \
     prompt_file=$(render_prompt "$SCRIPT_DIR/prompts/develop.md" "$work_dir")
   ai_run generator "$(cat "$prompt_file")" "$log_file"
   rm -f "$prompt_file"
@@ -162,7 +167,7 @@ run_dev_phase() {
 2. 按固定格式在 .phantom/changelog.md 末尾追加一节：
 
 ```markdown
-## Iteration <N> — <feature-slug>
+## Iteration <N> — <feature-slugs>
 
 ### 做了什么
 - <概述本轮写的功能>
@@ -195,18 +200,19 @@ EOF
 #
 # 返回：0 = pass，1 = fail（reviewer 或 shell 兜底命中）
 run_code_review_phase() {
-  local work_dir="$1" feature_slug="$2"
+  local work_dir="$1" features_csv="$2"
   set_phase_status "code_review" "in_progress"
   increment_iteration "code_review"
   local iter
   iter=$(get_phase_iteration "code_review")
-  log_phase "阶段 3/5: code-review（feature=${feature_slug}, iter=${iter}）"
+  local log_tag="${features_csv//,/_}"
+  log_phase "阶段 3/5: code-review（features=${features_csv}, iter=${iter}）"
 
   reset_last_code_review
 
-  local log_file="$LOG_DIR/code-review-iter${iter}-${feature_slug}.log"
+  local log_file="$LOG_DIR/code-review-iter${iter}-${log_tag}.log"
   local prompt_file
-  PHANTOM_FEATURE="$feature_slug" \
+  PHANTOM_FEATURE="$features_csv" \
     prompt_file=$(render_prompt "$SCRIPT_DIR/prompts/code-review.md" "$work_dir")
   ai_run code_reviewer "$(cat "$prompt_file")" "$log_file"
   rm -f "$prompt_file"
@@ -215,9 +221,9 @@ run_code_review_phase() {
   if ! last_code_review_valid_json; then
     log_warn "code-review 未输出合法 JSON，强制 fail"
     cat > "$LAST_CODE_REVIEW_FILE" <<EOF
-{"verdict":"fail","feature":"${feature_slug}","issues":[{"category":"other","where":"reviewer","what":"reviewer 未输出合法 JSON","evidence":"jq empty 失败"}],"notes":""}
+{"verdict":"fail","feature":"${features_csv}","issues":[{"category":"other","where":"reviewer","what":"reviewer 未输出合法 JSON","evidence":"jq empty 失败"}],"notes":""}
 EOF
-    _write_code_review_return_packet "$feature_slug" "$iter"
+    _write_code_review_return_packet "$features_csv" "$iter"
     set_phase_status "code_review" "failed"
     return 1
   fi
@@ -227,7 +233,7 @@ EOF
 
   if [[ "$verdict" != "pass" ]]; then
     log_warn "code-review verdict=$verdict"
-    _write_code_review_return_packet "$feature_slug" "$iter"
+    _write_code_review_return_packet "$features_csv" "$iter"
     set_phase_status "code_review" "failed"
     return 1
   fi
@@ -251,16 +257,17 @@ EOF
      '.verdict = "fail" | .issues += ($hits | map({category: "shell-grep", where: ".", what: ., evidence: "shell grep"}))' \
      "$LAST_CODE_REVIEW_FILE" > "$tmp" && mv "$tmp" "$LAST_CODE_REVIEW_FILE"
 
-  _write_code_review_return_packet "$feature_slug" "$iter"
+  _write_code_review_return_packet "$features_csv" "$iter"
   set_phase_status "code_review" "failed"
   return 1
 }
 
 # 写 return-packet.md（code-review 失败时）
 _write_code_review_return_packet() {
-  local feature_slug="$1" iter="$2"
+  local features_csv="$1" iter="$2"
   local timestamp
   timestamp=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+  local log_tag="${features_csv//,/_}"
 
   # 从 last-code-review.json 取 issues
   local issues_section=""
@@ -275,7 +282,7 @@ _write_code_review_return_packet() {
 ---
 return_from: code-review
 iteration: $iter
-feature: $feature_slug
+feature: $features_csv
 triggered_at: $timestamp
 ---
 
@@ -294,7 +301,7 @@ $issues_section
 ## 全量报告
 
 - \`.phantom/last-code-review.json\`
-- \`.phantom/logs/code-review-iter${iter}-${feature_slug}.log\`
+- \`.phantom/logs/code-review-iter${iter}-${log_tag}.log\`
 EOF
 }
 
@@ -302,12 +309,12 @@ EOF
 #
 # 返回：0 = pass，1 = fail（自试 2 次都失败后写 return-packet）
 run_deploy_phase() {
-  local work_dir="$1" feature_slug="$2"
+  local work_dir="$1" features_csv="$2"
   set_phase_status "deploy" "in_progress"
   increment_iteration "deploy"
   local iter
   iter=$(get_phase_iteration "deploy")
-  log_phase "阶段 4/5: deploy（feature=${feature_slug}, iter=${iter}）"
+  log_phase "阶段 4/5: deploy（features=${features_csv}, iter=${iter}）"
 
   local port
   port=$(cat "$PORT_FILE" 2>/dev/null || echo 8080)
@@ -330,7 +337,7 @@ run_deploy_phase() {
 $deploy_err"
     fi
 
-    PHANTOM_FEATURE="$feature_slug" PHANTOM_EXTRA_NOTE="$extra_note" \
+    PHANTOM_FEATURE="$features_csv" PHANTOM_EXTRA_NOTE="$extra_note" \
       prompt_file=$(render_prompt "$SCRIPT_DIR/prompts/deploy.md" "$work_dir")
     ai_run deploy "$(cat "$prompt_file")" "$log_file"
     rm -f "$prompt_file"
@@ -431,7 +438,7 @@ $smoke_failures"
 
   # 2 次自试都失败 → 写 return-packet 回 dev
   log_error "Deploy 自试 $max_attempts 次后仍失败"
-  _write_deploy_return_packet "$feature_slug" "$iter" "$deploy_err"
+  _write_deploy_return_packet "$features_csv" "$iter" "$deploy_err"
   set_phase_status "deploy" "failed"
   return 1
 }
@@ -453,7 +460,7 @@ _extract_endpoints_from_plan() {
 }
 
 _write_deploy_return_packet() {
-  local feature_slug="$1" iter="$2" err="$3"
+  local features_csv="$1" iter="$2" err="$3"
   local timestamp
   timestamp=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 
@@ -461,7 +468,7 @@ _write_deploy_return_packet() {
 ---
 return_from: deploy
 iteration: $iter
-feature: $feature_slug
+feature: $features_csv
 triggered_at: $timestamp
 ---
 
@@ -488,16 +495,17 @@ EOF
 # 调用方负责 min/max rounds 计数；这里只跑单次 test round。
 # 返回：0 = pass（分数 ≥80）；1 = fail
 run_test_phase() {
-  local work_dir="$1" feature_slug="$2"
+  local work_dir="$1" features_csv="$2"
   set_phase_status "test" "in_progress"
   increment_iteration "test"
   local iter
   iter=$(get_phase_iteration "test")
-  log_phase "阶段 5/5: test（feature=${feature_slug}, iter=${iter}）"
+  local log_tag="${features_csv//,/_}"
+  log_phase "阶段 5/5: test（features=${features_csv}, iter=${iter}）"
 
-  local log_file="$LOG_DIR/test-iter${iter}-${feature_slug}.log"
+  local log_file="$LOG_DIR/test-iter${iter}-${log_tag}.log"
   local prompt_file
-  PHANTOM_FEATURE="$feature_slug" \
+  PHANTOM_FEATURE="$features_csv" \
     prompt_file=$(render_prompt "$SCRIPT_DIR/prompts/test.md" "$work_dir")
   ai_run tester "$(cat "$prompt_file")" "$log_file"
   rm -f "$prompt_file"
@@ -506,7 +514,7 @@ run_test_phase() {
   local report_file="$STATE_DIR/test-report-iter${iter}.md"
   if ! [[ -f "$report_file" ]]; then
     log_warn "tester 未产出 test-report-iter${iter}.md，强制 fail 并构造 return-packet"
-    _write_test_return_packet "$feature_slug" "$iter" "0" "tester 未产出 test-report-iter${iter}.md"
+    _write_test_return_packet "$features_csv" "$iter" "0" "tester 未产出 test-report-iter${iter}.md"
     set_phase_status "test" "failed"
     return 1
   fi
@@ -516,7 +524,7 @@ run_test_phase() {
   score=$(_extract_score_from_report "$report_file")
   if [[ -z "$score" ]] || [[ ! "$score" =~ ^[0-9]+$ ]]; then
     log_warn "无法从 test-report 提取总分，强制 fail"
-    _write_test_return_packet "$feature_slug" "$iter" "0" "无法从 test-report-iter${iter}.md 提取总分"
+    _write_test_return_packet "$features_csv" "$iter" "0" "无法从 test-report-iter${iter}.md 提取总分"
     set_phase_status "test" "failed"
     return 1
   fi
@@ -532,7 +540,7 @@ run_test_phase() {
   log_warn "test 分数 $score < 80，写 return-packet 回 dev"
   # 如果 tester 已经写了 return-packet 就用它；否则 shell 兜底写一份
   if ! return_packet_exists; then
-    _write_test_return_packet "$feature_slug" "$iter" "$score" "分数 $score < 80 但 tester 没写 return-packet"
+    _write_test_return_packet "$features_csv" "$iter" "$score" "分数 $score < 80 但 tester 没写 return-packet"
   fi
   set_phase_status "test" "failed"
   return 1
@@ -546,15 +554,16 @@ _extract_score_from_report() {
 }
 
 _write_test_return_packet() {
-  local feature_slug="$1" iter="$2" score="$3" reason="$4"
+  local features_csv="$1" iter="$2" score="$3" reason="$4"
   local timestamp
   timestamp=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+  local log_tag="${features_csv//,/_}"
 
   cat > "$RETURN_PACKET_FILE" <<EOF
 ---
 return_from: test
 iteration: $iter
-feature: $feature_slug
+feature: $features_csv
 triggered_at: $timestamp
 ---
 
@@ -573,32 +582,101 @@ Test 评分 ${score}/100，低于阈值 80。$reason
 ## 全量报告
 
 - \`.phantom/test-report-iter${iter}.md\`
-- \`.phantom/logs/test-iter${iter}-${feature_slug}.log\`
+- \`.phantom/logs/test-iter${iter}-${log_tag}.log\`
 EOF
 }
 
-# ── Feature 列表读取（从 plan.locked.md 的 Feature 章节） ──────
-# 按关键字匹配章节（不依赖编号）；feature slug 必须形如 "feature-<N>-<name>"
-list_features_from_plan() {
+# ── Feature 分组与列表读取（从 plan.locked.md 的 Feature 章节） ──────
+#
+# 新格式：H3 = group（### group-N: name），H4 = feature（#### feature-N-slug）
+# 兼容旧格式：H3 = feature（### feature-N-slug），此时每个 feature 自成一组
+
+# 列出所有 group，每行格式：group-N:feature-1-slug,feature-2-slug,...
+list_feature_groups_from_plan() {
   [[ -f "$PLAN_LOCKED_FILE" ]] || return 1
   awk '
     /^##[^#].*(Feature|功能).*(列表|List)/ { in_section=1; next }
-    /^##[^#]/ { in_section=0 }
-    in_section && /^### / {
-      slug = $0
-      gsub(/^### /, "", slug)
-      gsub(/:.*$/, "", slug)
-      gsub(/^[[:space:]]+|[[:space:]]+$/, "", slug)
-      # 只接受严格格式 feature-N-slug（下游 shell 解析依赖）
-      if (slug ~ /^feature-[0-9]+-[a-z0-9][-a-z0-9]*$/) print slug
+    /^##[^#]/ {
+      if (in_section && current_group != "" && features != "") {
+        print current_group ":" features
+      }
+      in_section=0
+    }
+    !in_section { next }
+
+    # H3: 可能是 group 标题，也可能是旧格式的 feature
+    /^### / {
+      line = $0
+      gsub(/^### /, "", line)
+
+      # 先检查是否是 group-N: name 格式
+      if (line ~ /^group-[0-9]+:/) {
+        # 输出上一个 group（如果有）
+        if (current_group != "" && features != "") {
+          print current_group ":" features
+        }
+        slug = line
+        gsub(/:.*$/, "", slug)
+        gsub(/^[[:space:]]+|[[:space:]]+$/, "", slug)
+        current_group = slug
+        features = ""
+        next
+      }
+
+      # 旧格式兼容：H3 直接是 feature slug
+      gsub(/:.*$/, "", line)
+      gsub(/^[[:space:]]+|[[:space:]]+$/, "", line)
+      if (line ~ /^feature-[0-9]+-[a-z0-9][-a-z0-9]*$/) {
+        # 每个 feature 自成一组
+        if (current_group != "" && features != "") {
+          print current_group ":" features
+        }
+        current_group = "group-auto-" line
+        features = line
+      }
+      next
+    }
+
+    # H4: group 内的 feature
+    /^#### / {
+      line = $0
+      gsub(/^#### /, "", line)
+      gsub(/:.*$/, "", line)
+      gsub(/^[[:space:]]+|[[:space:]]+$/, "", line)
+      if (line ~ /^feature-[0-9]+-[a-z0-9][-a-z0-9]*$/) {
+        if (features == "") {
+          features = line
+        } else {
+          features = features "," line
+        }
+      }
+    }
+
+    END {
+      if (in_section && current_group != "" && features != "") {
+        print current_group ":" features
+      }
     }
   ' "$PLAN_LOCKED_FILE"
 }
 
-# 根据索引取第 N 个 feature 的 slug
-get_feature_by_index() {
+# 根据索引取第 N 个 group 的 feature 列表（逗号分隔）
+get_group_by_index() {
   local idx="$1"
-  list_features_from_plan | sed -n "$((idx + 1))p"
+  list_feature_groups_from_plan | sed -n "$((idx + 1))p"
+}
+
+# group 总数
+count_groups() {
+  list_feature_groups_from_plan | wc -l | tr -d ' '
+}
+
+# 列出所有 feature slug（扁平，兼容旧调用）
+list_features_from_plan() {
+  [[ -f "$PLAN_LOCKED_FILE" ]] || return 1
+  list_feature_groups_from_plan | while IFS=: read -r _group features; do
+    echo "$features" | tr ',' '\n'
+  done
 }
 
 # feature 总数

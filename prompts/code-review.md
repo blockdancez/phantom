@@ -11,7 +11,7 @@
 - **不打分**：输出只有 `pass` / `fail`，不要 completeness score
 - **失败时必须写 return-packet.md**
 
-## 当前 feature
+## 当前 group 的 feature 列表
 
 **{{FEATURE}}**
 

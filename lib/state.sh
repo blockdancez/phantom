@@ -35,7 +35,7 @@ init_state() {
   "requirements_file": "$requirements_file",
   "project_dir": "$project_dir",
   "current_phase": "plan",
-  "current_feature_index": 0,
+  "current_group_index": 0,
   "phases": {
     "plan":        { "status": "pending", "iteration": 0 },
     "dev":         { "status": "pending", "iteration": 0 },
@@ -88,16 +88,18 @@ set_phase_status() {
   set_state ".phases.${phase}.status" "\"$status\""
 }
 
-# ── Feature 索引（feature-per-sprint） ─────────────
+# ── Group 索引（group-per-sprint） ─────────────
 
-get_current_feature_index() {
-  get_state '.current_feature_index'
+get_current_group_index() {
+  local val
+  val=$(get_state '.current_group_index // 0')
+  echo "${val:-0}"
 }
 
-advance_feature_index() {
+advance_group_index() {
   local current
-  current=$(get_current_feature_index)
-  set_state '.current_feature_index' "$((current + 1))"
+  current=$(get_current_group_index)
+  set_state '.current_group_index' "$((current + 1))"
 }
 
 # ── Return packet 校验 ─────────────────────────────

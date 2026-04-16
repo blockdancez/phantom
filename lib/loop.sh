@@ -209,7 +209,7 @@ _session_started() {
   [[ -f "$(_session_flag_file "$role" "$backend")" ]]
 }
 
-# 重置某个 role 的所有会话标记（例如 feature-per-sprint 跨 feature 时可选）
+# 重置某个 role 的所有会话标记（例如 group-per-sprint 跨 group 时可选）
 reset_session_flags() {
   local role="$1"
   rm -f "$STATE_DIR/sessions/${role}-"* 2>/dev/null || true

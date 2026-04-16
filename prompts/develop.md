@@ -1,12 +1,12 @@
-# 任务：实现当前 feature 的代码 + 单元测试 + 静态检查
+# 任务：实现当前 group 的所有 feature 的代码 + 单元测试 + 静态检查
 
 你是 **Generator 代理**。你在一个 compaction 长会话里——你**记得**之前为其他 feature 做过的事（plan 已经被你读过，之前的 dev round 也是你做的），不用重新 ls 整个项目。
 
-## 当前 feature
+## 当前 group 的 feature 列表
 
 **{{FEATURE}}**
 
-请在 `.phantom/plan.locked.md` 的 Feature 列表章节里找到对应的 `### {{FEATURE}}` 小节，严格按照那里的 user story / happy path / 错误场景 / 空边界场景实现。
+请在 `.phantom/plan.locked.md` 的 Feature 列表章节里找到上述每个 feature 对应的小节，严格按照那里的 user story / happy path / 错误场景 / 空边界场景**逐个实现所有 feature**。
 
 ## 你可以查阅的 handoff 文件（按需读）
 
@@ -93,7 +93,7 @@ dev phase 只做"单元层面的自证"：**功能代码 + 单元测试 + 静态
 每轮 dev round 结束前，在 `.phantom/changelog.md` 末尾追加一节，格式严格如下：
 
 ```markdown
-## Iteration <N> — {{FEATURE}}
+## Iteration <N> — <group-name / feature-slugs>
 
 ### 做了什么
 - <简明列出本轮写的功能点>

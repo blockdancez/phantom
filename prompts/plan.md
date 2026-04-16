@@ -86,10 +86,12 @@
 
 ### Feature 列表（最关键的章节）
 
-按优先级排序，**每个 feature 用一个 H3 + 固定结构**：
+Feature 按**功能模块 / 相关性分组**，每组 feature 会作为一个 sprint 整体开发、审查、部署、测试。分组用 H3 标记，feature 用 H4 标记：
 
 ```markdown
-### feature-1: <kebab-case-slug>
+### group-1: <group-name>
+
+#### feature-1-<kebab-case-slug>
 
 **User story**: 作为 <角色>，我想要 <做什么>，以便 <达成目的>。
 
@@ -107,13 +109,32 @@
 - 空列表：显示占位符文案"还没有任何 todo"
 - 分页越界：显示"没有更多数据"
 - 超长字符串：截断显示 + tooltip
+
+#### feature-2-<kebab-case-slug>
+
+...（同组的下一个 feature）
+
+### group-2: <group-name>
+
+#### feature-3-<kebab-case-slug>
+
+...
 ```
 
-**最小数量**：**至少 5 个 feature**。简单需求也要拆出至少 5 个——登录/认证、核心 CRUD、列表筛选、空态处理、错误处理，是通用的 5 个 feature slot。
+**分组原则**：
+- 相互依赖或数据模型紧耦合的 feature 放一组（例：用户认证 + 权限控制）
+- 同一领域的 CRUD + 筛选 + 排序放一组
+- 纯 UI 打磨（空态、加载态、响应式）可以合成一组
+- 每组 2-4 个 feature 为宜，不要一组超过 5 个
+- **组间尽量低耦合**，组内可以高耦合
 
-**slug 格式**：严格 `feature-<N>-<kebab-case-name>`，例如 `feature-1-user-auth`、`feature-2-todo-crud`。**下游 phantom 的 shell 解析依赖这个格式，不得偏离**。
+**分组标题格式**：严格 `group-<N>: <name>`，例如 `group-1: 用户认证与权限`、`group-2: Todo CRUD`。**下游 shell 解析依赖这个格式**。
 
-**鼓励野心大**：如果需求明确说"构建 Todo App"而没说"只做 MVP"，就**往完整产品的方向展开**——8–12 个 feature 都是合理的。
+**Feature slug 格式**：严格 `feature-<N>-<kebab-case-name>`，例如 `feature-1-user-auth`、`feature-2-todo-crud`。**下游 shell 解析依赖这个格式，不得偏离**。
+
+**最小数量**：**至少 5 个 feature**，分成 **2-4 个 group**。简单需求也要拆出至少 5 个——登录/认证、核心 CRUD、列表筛选、空态处理、错误处理，是通用的 5 个 feature slot。
+
+**鼓励野心大**：如果需求明确说"构建 Todo App"而没说"只做 MVP"，就**往完整产品的方向展开**——8–12 个 feature、3–4 个 group 都是合理的。
 
 ### API 约定
 

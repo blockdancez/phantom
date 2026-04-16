@@ -326,7 +326,7 @@ if [[ -z "${PORT:-}" ]]; then
   log_info "项目端口: $PORT"
 fi
 
-# ── 主循环（harness-v2 feature-per-sprint） ──────────────
+# ── 主循环（harness-v2 group-per-sprint） ──────────────
 
 # 每 feature 的循环上限
 DEV_MAX_ROUNDS=6
@@ -336,69 +336,70 @@ if [[ "${PHANTOM_FAST:-0}" == "1" ]]; then
   DEV_MIN_ROUNDS=1
 fi
 
-# 单个 feature 的完整 sprint：dev → code-review → deploy → test 循环
+# 单个 group 的完整 sprint：dev → code-review → deploy → test 循环
+# group_line 格式："group-N:feature-1-slug,feature-2-slug,..."
 # 直到 test 分数 ≥ 80 且轮数 ≥ min_rounds；失败上限 max_rounds
-run_feature_sprint() {
-  local feature_slug="$1"
-  log_phase "═══ Feature sprint: $feature_slug ═══"
+run_group_sprint() {
+  local group_line="$1"
+  local group_name="${group_line%%:*}"
+  local features_csv="${group_line#*:}"
+  log_phase "═══ Group sprint: ${group_name} (${features_csv}) ═══"
 
   local round=0
   while [[ $round -lt $DEV_MAX_ROUNDS ]]; do
     round=$((round + 1))
-    log_phase "── $feature_slug round $round/$DEV_MAX_ROUNDS ──"
+    log_phase "── ${group_name} round $round/$DEV_MAX_ROUNDS ──"
 
-    # Dev
-    if ! run_dev_phase "$PROJECT_DIR" "$feature_slug"; then
+    # Dev：一次处理整组 feature
+    if ! run_dev_phase "$PROJECT_DIR" "$features_csv"; then
       log_error "dev phase 失败"
       return 1
     fi
 
     # Code review
-    if ! run_code_review_phase "$PROJECT_DIR" "$feature_slug"; then
+    if ! run_code_review_phase "$PROJECT_DIR" "$features_csv"; then
       log_warn "code-review reject，继续下一轮 dev"
       continue
     fi
 
     # Deploy
-    if ! run_deploy_phase "$PROJECT_DIR" "$feature_slug"; then
+    if ! run_deploy_phase "$PROJECT_DIR" "$features_csv"; then
       log_warn "deploy 失败，继续下一轮 dev"
       continue
     fi
 
     # Test
-    if ! run_test_phase "$PROJECT_DIR" "$feature_slug"; then
+    if ! run_test_phase "$PROJECT_DIR" "$features_csv"; then
       log_warn "test 分数 < 80 或失败，继续下一轮 dev"
       continue
     fi
 
     # Test 通过且达到 min_rounds → sprint 完成
     if [[ $round -ge $DEV_MIN_ROUNDS ]]; then
-      log_ok "feature ${feature_slug} sprint 完成（round=${round}）"
+      log_ok "group ${group_name} sprint 完成（round=${round}）"
       return 0
     fi
 
     log_info "test 通过但 round=${round} < min=${DEV_MIN_ROUNDS}，强制再跑一轮打磨"
-    # Shell 自己造一个"鼓励再打磨"的 return-packet，避免 dev 无所事事
     cat > "$RETURN_PACKET_FILE" <<EOF
 ---
 return_from: test
 iteration: $round
-feature: $feature_slug
+feature: $features_csv
 triggered_at: $(date -u +%Y-%m-%dT%H:%M:%SZ)
 ---
 
 ## 为什么回来
 
-Test 已通过但当前只跑了 ${round} 轮，未达 min_rounds=${DEV_MIN_ROUNDS}。这是**强制打磨轮**——第一次跑通不代表完美。
+Test 已通过但当前只跑了 ${round} 轮，未达 min_rounds=${DEV_MIN_ROUNDS}。这是**强制打磨轮**。
 
 ## 必修项（硬性，dev 必须全部修掉）
 
-- [polish] 回头审视本 feature 的代码和测试，找 1-3 处可以提升的地方：
+- [polish] 回头审视本组 feature（${features_csv}）的代码和测试，找 1-3 处可以提升的地方：
   - 错误处理是否覆盖完整？
   - 空态/加载态文案是否到位？
   - 日志字段是否齐全（request_id、耗时、状态）？
   - 单测覆盖的边界场景是否充分？
-  - 代码可读性有没有改进空间？
   至少做出 1 处改动并在 changelog.md 里写明。
 
 ## 建议项（软性）
@@ -413,12 +414,16 @@ EOF
 
   # 达到 max rounds 仍未通过
   if [[ "${PHANTOM_STRICT:-0}" == "1" ]]; then
-    log_error "feature $feature_slug 达到 max_rounds=$DEV_MAX_ROUNDS 仍未通过（strict 模式）"
+    log_error "group ${group_name} 达到 max_rounds=$DEV_MAX_ROUNDS 仍未通过（strict 模式）"
     return 1
   fi
 
-  log_warn "feature $feature_slug 达到 max_rounds 强制推进（forced_feature 标记）"
-  mark_forced_feature "$feature_slug"
+  log_warn "group ${group_name} 达到 max_rounds 强制推进"
+  # 标记组内所有 feature 为 forced
+  local f
+  while IFS= read -r f; do
+    mark_forced_feature "$f"
+  done < <(echo "$features_csv" | tr ',' '\n')
   return 0
 }
 
@@ -475,28 +480,29 @@ run_all_phases() {
     set_state '.current_phase' '"dev"'
   fi
 
-  # ── Feature-per-sprint 主循环 ─────────────────
-  local feature_count
+  # ── Group-per-sprint 主循环 ─────────────────
+  local group_count feature_count
+  group_count=$(count_groups)
   feature_count=$(count_features)
-  log_info "计划中共 $feature_count 个 feature，开始 feature-per-sprint 循环"
+  log_info "计划中共 ${group_count} 个 group、${feature_count} 个 feature，开始 group-per-sprint 循环"
 
   local idx
-  idx=$(get_current_feature_index)
-  while [[ $idx -lt $feature_count ]]; do
-    local feature_slug
-    feature_slug=$(get_feature_by_index "$idx")
-    if [[ -z "$feature_slug" ]]; then
-      log_error "无法取到第 $idx 个 feature（idx 溢出）"
+  idx=$(get_current_group_index)
+  while [[ $idx -lt $group_count ]]; do
+    local group_line
+    group_line=$(get_group_by_index "$idx")
+    if [[ -z "$group_line" ]]; then
+      log_error "无法取到第 $idx 个 group（idx 溢出）"
       return 1
     fi
 
-    if ! run_feature_sprint "$feature_slug"; then
-      log_error "feature sprint 失败：$feature_slug"
+    if ! run_group_sprint "$group_line"; then
+      log_error "group sprint 失败：${group_line%%:*}"
       return 1
     fi
 
-    advance_feature_index
-    idx=$(get_current_feature_index)
+    advance_group_index
+    idx=$(get_current_group_index)
   done
 
   # ── 收尾 ──────────────────────────────────────
