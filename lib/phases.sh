@@ -511,6 +511,37 @@ run_test_phase() {
   ai_run tester "$(cat "$prompt_file")" "$log_file"
   rm -f "$prompt_file"
 
+  # 辅助：解析 Playwright JSON 结果（如果 tester 生成了脚本并跑了）
+  local pw_results="$work_dir/.playwright/results.json"
+  if [[ -f "$pw_results" ]]; then
+    local pw_stats
+    pw_stats=$(python3 -u -c "
+import json, sys
+try:
+    r = json.load(open(sys.argv[1]))
+    total = passed = failed = 0
+    def count(suites):
+        global total, passed, failed
+        for s in suites:
+            for t in s.get('specs', []):
+                for test in t.get('tests', []):
+                    total += 1
+                    status = test.get('results', [{}])[-1].get('status', '')
+                    if status == 'passed': passed += 1
+                    elif status in ('failed', 'timedOut'): failed += 1
+            count(s.get('suites', []))
+    count(r.get('suites', []))
+    print(f'{total} {passed} {failed}')
+except Exception:
+    print('0 0 0')
+" "$pw_results" 2>/dev/null || echo "0 0 0")
+    local pw_total pw_passed pw_failed
+    read -r pw_total pw_passed pw_failed <<< "$pw_stats"
+    if [[ "$pw_total" -gt 0 ]]; then
+      log_info "Playwright 脚本结果：${pw_passed}/${pw_total} passed, ${pw_failed} failed"
+    fi
+  fi
+
   # 校验 test-report 存在
   local report_file="$STATE_DIR/test-report-iter${iter}.md"
   if ! [[ -f "$report_file" ]]; then
