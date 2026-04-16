@@ -171,14 +171,46 @@ prompts/
   CLAUDE.md / AGENTS.md     # 项目说明（phantom 跑完后生成）
 ```
 
-## 依赖
+## 前置要求
 
-- **Claude Code CLI** >= 2.0 或 **OpenAI Codex CLI**（至少装一个，强烈建议两个都装以启用跨模型）
-- **jq** — JSON 状态管理
-- **python3** — 流式输出解析 + 端口分配
-- **docker** — deploy 阶段
-- **curl** — deploy phase 的 smoke 测试
-- **postgres MCP**（可选）— 数据库项目用
+使用 phantom 前，请确保以下依赖已安装并可用：
+
+### 必须
+
+| 依赖 | 用途 | 安装方式 |
+|---|---|---|
+| **Claude Code CLI** 或 **OpenAI Codex CLI** | AI 后端（至少装一个，**强烈建议两个都装**以启用跨模型评审） | `npm install -g @anthropic-ai/claude-code` / `npm install -g @openai/codex` |
+| **git** | 代码版本管理 | macOS 自带；Linux: `sudo apt install git` |
+| **jq** | JSON 状态管理 | `brew install jq`（macOS）/ `sudo apt install jq`（Linux） |
+| **python3** | 流式输出解析 + 端口分配 | macOS 自带；Linux: `sudo apt install python3` |
+| **docker** | deploy 阶段构建和运行容器 | [Docker Desktop](https://www.docker.com/products/docker-desktop/)（macOS/Windows）/ `sudo apt install docker.io`（Linux） |
+| **curl** | deploy 阶段 smoke 测试 | 大多数系统自带 |
+
+### 可选（按项目需求）
+
+| 依赖 | 用途 | 说明 |
+|---|---|---|
+| **postgres MCP** | 数据库操作 | 需要 PostgreSQL 的项目会用到，需本地安装 PostgreSQL 或配置远程连接 |
+| **Playwright MCP** | E2E 浏览器测试 | 有前端的项目 test phase 会用到 |
+
+### 环境变量（按项目需求配置）
+
+在 `~/.zshrc` 或 `~/.bashrc` 中配置以下环境变量，phantom 生成的项目会自动使用：
+
+```bash
+# 数据库（如果项目用 PostgreSQL）
+export DATABASE_URL="postgresql://user:password@localhost:5432/mydb"
+
+# AI API（如果项目需要调用大模型）
+export OPENAI_API_KEY="sk-..."
+
+# 搜索与爬虫（如果项目需要这些能力）
+export BRAVE_API_KEY="..."       # Brave Search API
+export TAVILY_API_KEY="tvly-..." # Tavily Search API
+export FIRECRAWL_API_KEY="..."   # Firecrawl 网页抓取 API
+```
+
+> 这些环境变量不是运行 phantom 本身所必需的，而是**生成的项目**可能会用到。phantom 会在 plan 阶段根据需求自动决定使用哪些。
 
 ## 理念
 
