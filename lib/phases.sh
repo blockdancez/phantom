@@ -420,18 +420,19 @@ $deploy_err"
       fi
     done <<< "$endpoints"
 
-    # 清理容器
-    docker stop "$container_name" >/dev/null 2>&1 || true
-    docker rm "$container_name" >/dev/null 2>&1 || true
-
     if [[ -n "$smoke_failures" ]]; then
       deploy_err="Smoke 测试失败：
 $smoke_failures"
       log_warn "$deploy_err"
+      # 失败时清理容器，下一轮重试会重新 run
+      docker stop "$container_name" >/dev/null 2>&1 || true
+      docker rm "$container_name" >/dev/null 2>&1 || true
       continue
     fi
 
+    # 成功：容器保持运行，不清理
     log_ok "Deploy 通过：docker build/run/smoke 全绿"
+    log_info "容器 ${container_name} 常驻运行中（端口 ${port}）"
     set_phase_status "deploy" "completed"
     return 0
   done
