@@ -123,6 +123,26 @@ dev phase 只做"单元层面的自证"：**功能代码 + 单元测试 + 静态
 - **禁止**默认 Bootstrap/Tailwind 灰底蓝按钮
 - 空态 / 加载态 / 错误态都要有具体文案和视觉呈现
 
+### 前端可测试性（硬性）
+
+所有可交互元素和关键状态容器**必须**带 `data-testid` 属性，命名规则：`<feature>-<element>-<action>`。例如：
+- `data-testid="todo-input-create"` — 创建 todo 的输入框
+- `data-testid="todo-list-container"` — todo 列表容器
+- `data-testid="todo-item-delete"` — 删除按钮
+- `data-testid="auth-form-login"` — 登录表单
+- `data-testid="empty-state"` — 空态占位符
+- `data-testid="loading-spinner"` — 加载态
+- `data-testid="error-message"` — 错误提示
+
+**aria-label** 也必须为所有非文字按钮（图标按钮）填写有意义的标签。
+
+**全局测试钩子**：在应用入口暴露 `window.__TEST__` 对象，包含：
+- `window.__TEST__.store` — 当前应用状态快照（如 Redux store / Zustand state）
+- `window.__TEST__.user` — 当前登录用户信息（或 null）
+- `window.__TEST__.ready` — 应用是否初始化完成（boolean）
+
+生产构建可以通过环境变量 `VITE_ENABLE_TEST_HOOKS=true`（默认 true）控制是否暴露。
+
 ## 数据库规范（如果用数据库）
 
 - **必须 PostgreSQL**
