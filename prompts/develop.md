@@ -126,9 +126,16 @@ dev phase 只做"单元层面的自证"：**功能代码 + 单元测试 + 静态
 ## 数据库规范（如果用数据库）
 
 - **必须 PostgreSQL**
-- 连接串从 `DATABASE_URL` 环境变量读
+- 连接串从 `DATABASE_URL` 环境变量读（宿主机已配置）
+- **每个项目必须单独建 database**（不共用），用 `CREATE DATABASE IF NOT EXISTS <project-name>` 或等效方式
 - 表结构 / 迁移脚本 / 种子数据都要写到仓库里
 - 通过 postgres MCP 操作 DB
+
+## 大模型 API 规范（如果项目需要 AI 能力）
+
+- 使用 **OpenAI API**（宿主机已配置 `OPENAI_API_KEY` 环境变量）
+- 代码中从 `OPENAI_API_KEY` 环境变量读取 key，**禁止硬编码**
+- 推荐使用官方 SDK（Python: `openai`；JS/TS: `openai`）
 
 ---
 

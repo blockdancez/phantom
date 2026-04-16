@@ -185,7 +185,9 @@ Feature 按**功能模块 / 相关性分组**，每组 feature 会作为一个 s
 
 ### 部署配置
 - `PORT` 环境变量（默认值用 `{{PORT}}`）
-- 环境变量清单
+- 环境变量清单（必须包含以下已有变量）：
+  - `DATABASE_URL` —— PostgreSQL 连接串，宿主机已配置。**每个项目必须单独建 database**（不共用），连接串格式如 `postgresql://user:pass@host:5432/<project-name>`
+  - `OPENAI_API_KEY` —— 如果项目需要调用大模型能力（AI 聊天、文本生成、嵌入等），使用 OpenAI API，宿主机已配置此 key
 - Dockerfile base image / 构建步骤 / 健康检查 / 启动命令
 - 数据库迁移触发方式
 
