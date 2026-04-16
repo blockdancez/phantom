@@ -50,6 +50,22 @@ phantom --resume todo-app
 phantom --delete                 # 交互选
 ```
 
+## 默认技术栈与目录结构
+
+除非需求明确指定其他技术，phantom 生成的项目默认采用：
+
+| 层 | 默认技术 | 目录 |
+|---|---|---|
+| **后端** | Python 3.11+（FastAPI / uvicorn） | `backend/` |
+| **前端** | React 18 + Vite + TypeScript | `frontend/` |
+| **数据库** | PostgreSQL（硬性） | — |
+| **包管理** | 后端 poetry / uv；前端 pnpm | — |
+| **测试** | 后端 pytest；前端 vitest + Playwright | — |
+
+**前后端强制分离**：有前后端的项目必须分为 `backend/` 和 `frontend/` 两个顶层目录，各自有独立的依赖声明和 lockfile。纯后端项目不建 `frontend/`，纯前端项目不建 `backend/`。
+
+需求中可以指定其他技术栈（如"用 Go 写后端"、"用 Vue 做前端"），plan 阶段会自动适配。
+
 ## 工作流程（harness v2）
 
 参考 [Anthropic Harness Design for Long-Running Apps](https://www.anthropic.com/engineering/harness-design-long-running-apps) 的 harness 模式：
