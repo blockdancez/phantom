@@ -249,7 +249,7 @@ triggered_at: <ISO 8601>
 
 ## 为什么回来
 
-Test 评分 <X>/100，低于阈值 80。
+Test 评分 <X>/100，低于阈值 90。
 
 ## 必修项（硬性，dev 必须全部修掉）
 
@@ -267,7 +267,7 @@ Test 评分 <X>/100，低于阈值 80。
 - `.phantom/logs/test-iter<N>-{{FEATURE}}.log`
 ```
 
-**如果总分 ≥ 80**：不要写 return-packet.md（让 shell 感知为 pass）。
+**如果总分 ≥ 90**：不要写 return-packet.md（让 shell 感知为 pass）。
 
 ---
 

@@ -344,7 +344,7 @@ fi
 
 # 单个 group 的完整 sprint：dev → code-review → deploy → test 循环
 # group_line 格式："group-N:feature-1-slug,feature-2-slug,..."
-# 直到 test 分数 ≥ 80 且轮数 ≥ min_rounds；失败上限 max_rounds
+# 直到 test 分数 ≥ 90 且轮数 ≥ min_rounds；失败上限 max_rounds
 run_group_sprint() {
   local group_line="$1"
   local group_name="${group_line%%:*}"

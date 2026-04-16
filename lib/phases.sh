@@ -494,7 +494,7 @@ EOF
 # ── 阶段 5：test（接口 + E2E + rubric 评分） ────────
 #
 # 调用方负责 min/max rounds 计数；这里只跑单次 test round。
-# 返回：0 = pass（分数 ≥80）；1 = fail
+# 返回：0 = pass（分数 ≥90）；1 = fail
 run_test_phase() {
   local work_dir="$1" features_csv="$2"
   set_phase_status "test" "in_progress"
@@ -563,16 +563,16 @@ except Exception:
 
   log_info "test round $iter 总分: $score/100"
 
-  if [[ "$score" -ge 80 ]]; then
-    log_ok "test 通过（$score/100 ≥ 80）"
+  if [[ "$score" -ge 90 ]]; then
+    log_ok "test 通过（$score/100 ≥ 90）"
     set_phase_status "test" "completed"
     return 0
   fi
 
-  log_warn "test 分数 $score < 80，写 return-packet 回 dev"
+  log_warn "test 分数 $score < 90，写 return-packet 回 dev"
   # 如果 tester 已经写了 return-packet 就用它；否则 shell 兜底写一份
   if ! return_packet_exists; then
-    _write_test_return_packet "$features_csv" "$iter" "$score" "分数 $score < 80 但 tester 没写 return-packet"
+    _write_test_return_packet "$features_csv" "$iter" "$score" "分数 $score < 90 但 tester 没写 return-packet"
   fi
   set_phase_status "test" "failed"
   return 1
