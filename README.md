@@ -42,6 +42,12 @@ phantom --strict requirements.md
 # Fast 模式：降低 min rounds 地板，快速烟测
 phantom --fast requirements.md
 
+# 只跑 plan 阶段（规划 + 评审 + 落锁），不写代码
+phantom --plan-only requirements.md
+
+# 跳过 plan，直接开发（需要 .phantom/plan.locked.md 已存在）
+phantom --skip-plan --resume todo-app
+
 # 恢复中断
 phantom --resume                 # 交互选
 phantom --resume todo-app

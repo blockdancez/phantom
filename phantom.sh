@@ -47,6 +47,8 @@ Phantom AutoDev - 全自主需求开发程序
   --delete [项目名]                 删除项目
   --strict                         达到 max rounds 时直接失败（不 forced advance）
   --fast                           降低 min rounds 地板，快速跑通（烟测用）
+  --plan-only                      只跑 plan 阶段（plan → plan-review → plan → 落锁），不进主循环
+  --skip-plan                      跳过 plan，直接从 dev 开始（需要 .phantom/plan.locked.md 已存在）
   --backend <claude|codex>         所有 role 的默认后端
   --generator <claude|codex>       指定 generator 后端
   --plan-reviewer <claude|codex>   指定 plan-reviewer 后端
@@ -74,6 +76,8 @@ EOF
 
 RESUME=false
 DELETE=false
+PLAN_ONLY=false
+SKIP_PLAN=false
 REQ_INPUT=""
 PROJECT_DIR=""
 
@@ -84,6 +88,8 @@ while [[ $# -gt 0 ]]; do
     --delete) DELETE=true; shift ;;
     --strict) export PHANTOM_STRICT=1; shift ;;
     --fast) export PHANTOM_FAST=1; shift ;;
+    --plan-only) PLAN_ONLY=true; shift ;;
+    --skip-plan) SKIP_PLAN=true; shift ;;
     --backend)
       export PHANTOM_BACKEND="$2"; shift 2 ;;
     --generator)
@@ -472,12 +478,28 @@ $(echo "$forced_list" | sed 's/^/- /')
 }
 
 run_all_phases() {
-  # ── Plan phase（一次性）─────────────────────────
+  # ── Plan phase ─────────────────────────────────
   local current_phase
   current_phase=$(get_state '.current_phase')
-  if [[ "$current_phase" == "plan" ]]; then
+
+  if [[ "$SKIP_PLAN" == true ]]; then
+    # --skip-plan：跳过 plan，要求 plan.locked.md 已存在
+    if [[ ! -f "$PLAN_LOCKED_FILE" ]]; then
+      log_error "--skip-plan 需要 .phantom/plan.locked.md 已存在，请先跑 --plan-only 或完整流程"
+      return 1
+    fi
+    log_info "--skip-plan：跳过 plan 阶段，直接进入主循环"
+    set_state '.current_phase' '"dev"'
+  elif [[ "$current_phase" == "plan" ]]; then
     run_plan_phase "$PROJECT_DIR" || return 1
     set_state '.current_phase' '"dev"'
+    if [[ "$PLAN_ONLY" == true ]]; then
+      log_ok "--plan-only：plan 阶段完成，已落锁 .phantom/plan.locked.md"
+      return 0
+    fi
+  elif [[ "$PLAN_ONLY" == true ]]; then
+    log_info "plan 阶段已完成（跳过），如需重新规划请删除 .phantom/plan.locked.md"
+    return 0
   fi
 
   # ── Group-per-sprint 主循环 ─────────────────
