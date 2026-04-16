@@ -137,6 +137,13 @@ dev phase 只做"单元层面的自证"：**功能代码 + 单元测试 + 静态
 - 代码中从 `OPENAI_API_KEY` 环境变量读取 key，**禁止硬编码**
 - 推荐使用官方 SDK（Python: `openai`；JS/TS: `openai`）
 
+## 搜索与爬虫 API 规范（如果项目需要）
+
+- **Brave Search API**：从 `BRAVE_API_KEY` 环境变量读取（宿主机已配置），用于网页搜索
+- **Tavily Search API**：从 `TAVILY_API_KEY` 环境变量读取（宿主机已配置），用于 AI 搜索/研究
+- **Firecrawl API**：从 `FIRECRAWL_API_KEY` 环境变量读取（宿主机已配置），用于网页抓取/爬虫
+- 所有 key **禁止硬编码**，必须从环境变量读取
+
 ---
 
 本 round 结束条件：代码写完 + 单测全绿 + 静态检查 0 error + changelog.md 新增本 iteration 条目。
