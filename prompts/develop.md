@@ -58,7 +58,7 @@ dev phase 只做"单元层面的自证"：**功能代码 + 单元测试 + 静态
 ### 2. 写单元测试
 
 - 覆盖**核心模块**（services / domain logic / utils / 业务逻辑函数）
-- 核心模块的覆盖率 **≥ 80%**
+- 核心模块的覆盖率 **100%**
 - 每个测试用例要有 happy / error / edge 三类覆盖
 - 测试框架按语言默认：JS/TS → vitest/jest；Python → pytest；Go → testing；Rust → cargo test
 
