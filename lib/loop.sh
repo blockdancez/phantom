@@ -215,6 +215,9 @@ reset_session_flags() {
   rm -f "$STATE_DIR/sessions/${role}-"* 2>/dev/null || true
 }
 
+# AI 调用超时（秒），默认 30 分钟。可通过 PHANTOM_AI_TIMEOUT 环境变量覆盖
+AI_TIMEOUT="${PHANTOM_AI_TIMEOUT:-1800}"
+
 ai_run() {
   local role="$1" prompt="$2" log_file="$3"
   local b
@@ -225,22 +228,17 @@ ai_run() {
     mode="continue"
   fi
 
-  log_info "→ $role ($b, $mode)  开始调用，首次输出可能需要 10-30 秒"
+  log_info "→ $role ($b, $mode)  开始调用，超时 ${AI_TIMEOUT}s"
 
+  local cmd_func
   case "$b" in
     claude)
-      if [[ "$mode" == "new" ]]; then
-        _claude_run_new "$prompt" "$log_file"
-      else
-        _claude_run_continue "$prompt" "$log_file"
-      fi
+      if [[ "$mode" == "new" ]]; then cmd_func="_claude_run_new"
+      else cmd_func="_claude_run_continue"; fi
       ;;
     codex)
-      if [[ "$mode" == "new" ]]; then
-        _codex_run_new "$prompt" "$log_file"
-      else
-        _codex_run_continue "$prompt" "$log_file"
-      fi
+      if [[ "$mode" == "new" ]]; then cmd_func="_codex_run_new"
+      else cmd_func="_codex_run_continue"; fi
       ;;
     *)
       log_error "不支持的后端: $b"
@@ -248,7 +246,42 @@ ai_run() {
       ;;
   esac
 
-  local rc=$?
+  # 在子 shell 中执行，外层用 timeout 限制
+  # macOS 没有 coreutils timeout，用 perl 兼容
+  local rc=0
+  if command -v timeout >/dev/null 2>&1; then
+    timeout "$AI_TIMEOUT" bash -c "$(declare -f "$cmd_func" _claude_run_new _claude_run_continue _codex_run_new _codex_run_continue); $cmd_func \"\$1\" \"\$2\"" _ "$prompt" "$log_file"
+    rc=$?
+  else
+    # macOS fallback: 后台执行 + 等待 + 超时 kill
+    $cmd_func "$prompt" "$log_file" &
+    local pid=$!
+    local waited=0
+    while kill -0 "$pid" 2>/dev/null; do
+      if [[ $waited -ge $AI_TIMEOUT ]]; then
+        log_warn "AI 调用超时（${AI_TIMEOUT}s），强制终止"
+        kill -TERM "$pid" 2>/dev/null || true
+        sleep 2
+        kill -9 "$pid" 2>/dev/null || true
+        wait "$pid" 2>/dev/null || true
+        rc=124  # 和 coreutils timeout 一致
+        break
+      fi
+      sleep 5
+      waited=$((waited + 5))
+    done
+    if [[ $rc -ne 124 ]]; then
+      wait "$pid" 2>/dev/null
+      rc=$?
+    fi
+  fi
+
+  if [[ $rc -eq 124 ]]; then
+    log_error "AI 调用超时（${AI_TIMEOUT}s），role=${role}, backend=${b}"
+    echo "AI_TIMEOUT: ${AI_TIMEOUT}s exceeded" >> "$log_file"
+    return 1
+  fi
+
   _mark_session_started "$role" "$b"
   return $rc
 }
