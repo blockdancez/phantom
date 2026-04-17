@@ -20,7 +20,10 @@
 
 ## 预分配端口
 
-`{{PORT}}`（写死在 `.phantom/port`）。代码里必须 `PORT = os.getenv('PORT', '{{PORT}}')` 或等效写法，**不要**硬编码其他端口。
+- **Backend**：`{{BACKEND_PORT}}`（`.phantom/port.backend`），后端代码必须从 `PORT` 或 `BACKEND_PORT` 环境变量读取
+- **Frontend**：`{{FRONTEND_PORT}}`（`.phantom/port.frontend`），前端 dev server 必须从 `FRONTEND_PORT` 环境变量读取
+
+**不要**硬编码端口。两个端口都是预分配的，避免多项目并行时冲突。
 
 {{EXTRA_NOTE}}
 
@@ -31,7 +34,7 @@ dev phase 只做"单元层面的自证"：**功能代码 + 单元测试 + 静态
 **你不做的事**：
 - ❌ 接口测试（curl / httpie）——test phase 的 tester 会做
 - ❌ E2E 测试（Playwright）——test phase 会做
-- ❌ Docker 化——deploy phase 会做
+- ❌ 写启动脚本（`scripts/start-*.sh`）——deploy phase 会做
 - ❌ 自己跑生产服务器做端到端验证——留给下游
 
 **你必须做的事**：
@@ -50,7 +53,7 @@ dev phase 只做"单元层面的自证"：**功能代码 + 单元测试 + 静态
 - 所有前端代码写到 `frontend/` 下（React + TypeScript 默认）
 - 迁移 SQL 放 `backend/migrations/`，种子放 `backend/seeds/`
 - 前后端都各自有自己的依赖声明（`backend/pyproject.toml` / `frontend/package.json`）和 lockfile
-- 顶层只放 `Dockerfile` / `docker-compose.yml` / `README.md` / `.phantom/`
+- 顶层只放 `scripts/`（启动脚本由 deploy phase 写） / `README.md` / `.phantom/`
 - 纯后端项目不要建 `frontend/`，纯前端项目同理
 
 **如果这是循环回来的 round**，先读 `.phantom/return-packet.md`，**优先修必修项**，修完再继续新功能。
@@ -112,7 +115,7 @@ dev phase 只做"单元层面的自证"：**功能代码 + 单元测试 + 静态
 
 - 写真实可运行的代码，**禁止**留 TODO / FIXME / XXX / HACK
 - **禁止** `console.log` / `print`（必须用结构化 logger）
-- **禁止**硬编码端口（3000/8080/5000/8000），必须 `PORT` 从环境变量读，默认值用上面的 `{{PORT}}`
+- **禁止**硬编码端口（3000/8080/5000/8000），必须从环境变量读：后端 `PORT`/`BACKEND_PORT`，前端 `FRONTEND_PORT`
 - **禁止**硬编码密码 / 密钥
 - **禁止** mock 数据冒充真功能（例如写一个 `return [{id:1, title:"fake"}]` 代替查数据库）
 - 空函数体 / NotImplemented 直接 reject

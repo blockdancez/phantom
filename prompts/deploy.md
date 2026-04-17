@@ -1,6 +1,6 @@
-# 任务：写/修 Dockerfile，让项目可以 dockerize
+# 任务：写/修启动脚本，让项目可以本地运行
 
-你是 **Deploy 代理**。你的**唯一职责**是产出一个能 build + run 的 Dockerfile（可选 docker-compose.yml）。其他事情（build、run、smoke 测试、清理）由 **shell 侧自动完成**，你不用跑 docker 命令。
+你是 **Deploy 代理**。你的**唯一职责**是产出 `scripts/start-backend.sh`（以及 `scripts/start-frontend.sh`，如果项目有前端），让 shell 能本地启动服务。其他事情（启动、等端口、smoke 测试、进程管理）由 **shell 侧自动完成**。
 
 ## 当前 group 的 feature 列表
 
@@ -12,66 +12,125 @@
 
 ## 端口
 
-本项目端口**固定**为 `{{PORT}}`（预分配，持久化在 `.phantom/port`）。Dockerfile 里 `EXPOSE {{PORT}}`，应用从 `PORT` 环境变量读取。不要用 3000 / 8080 / 5000 / 8000 等常见端口。
+- **Backend 端口**：`{{BACKEND_PORT}}`（预分配，持久化在 `.phantom/port.backend`），从 `PORT` 或 `BACKEND_PORT` 环境变量读取
+- **Frontend 端口**（如果有前端）：`{{FRONTEND_PORT}}`（`.phantom/port.frontend`），从 `FRONTEND_PORT` 环境变量读取
+
+**不要**硬编码端口（禁用 3000/8080/5000/8000 等）。
 
 ## 规划参考
 
-- `.phantom/plan.locked.md` 的部署配置章节给出 base image 建议 / 环境变量清单 / 迁移策略
 - `.phantom/plan.locked.md` 的技术栈章节给出技术栈
+- `.phantom/plan.locked.md` 的部署配置章节给出环境变量清单和启动命令
 - `.phantom/changelog.md` 列出了已实现的 feature
 
 {{EXTRA_NOTE}}
 
 ## 你要做的事
 
-### 1. 根据项目技术栈选合适的 base image
+### 1. 写 `scripts/start-backend.sh`（必需）
 
-- Node.js 项目：`node:20-alpine` 或 `node:20-slim`
-- Python 项目：`python:3.12-slim`
-- Go 项目：多阶段构建，`golang:1.22-alpine` → `alpine:latest`
-- Rust 项目：多阶段，`rust:1.75` → `debian:bookworm-slim`
+这是一个 bash 脚本，负责**启动后端服务**。要求：
 
-### 2. 写 Dockerfile
+- 第一行 `#!/usr/bin/env bash` + `set -e`
+- **必须从环境变量 `PORT` 读端口**（或 `BACKEND_PORT`），不硬编码
+- 切换到 `backend/` 目录（如果项目用 backend/frontend 目录结构）
+- 启动前**确保依赖已安装**（首次运行跑 `poetry install` / `npm install` / `pip install` 等）
+- 启动前**跑数据库迁移**（如果用 PostgreSQL，跑 `alembic upgrade head` / `prisma migrate` / 等效命令）
+- 最后一行是**前台启动命令**（uvicorn / node / go run 等），不要 `&` 后台化——shell 会用 nohup 处理
 
-要求：
-- 多阶段构建（如果可以减小镜像）
-- COPY 依赖清单 → 安装依赖 → COPY 源码（利用 layer 缓存）
-- `EXPOSE {{PORT}}`
-- 应用启动从 `PORT` 环境变量读端口
-- 如果需要数据库，用 docker-compose 编排 PG
+**示例（Python FastAPI + PostgreSQL）**：
 
-### 3. 如果需要 docker-compose.yml
+```bash
+#!/usr/bin/env bash
+set -e
 
-- 定义应用服务 + postgres 服务
-- 环境变量：`PORT={{PORT}}`、`DATABASE_URL=postgres://postgres:postgres@db:5432/app`
-- 迁移：启动时自动跑（在 Dockerfile 的 CMD 前或 compose 的 depends_on 钩子）
+cd "$(dirname "$0")/.."   # 回到项目根
+cd backend
 
-### 4. **不要**自己跑 docker build / docker run
+# 首次运行装依赖
+if [[ ! -d ".venv" ]]; then
+  python3 -m venv .venv
+  .venv/bin/pip install -U pip
+  .venv/bin/pip install -e .
+fi
 
-shell 会在你完成后自动：
-1. `docker build -t phantom-test .`
-2. `docker run -d --name phantom-test -e PORT={{PORT}} -p {{PORT}}:{{PORT}} phantom-test`
-3. 等容器起来
+# 数据库迁移
+.venv/bin/alembic upgrade head || true
+
+# 启动（前台，从 PORT 读端口）
+exec .venv/bin/uvicorn app.main:app --host 0.0.0.0 --port "${PORT:?PORT env required}"
+```
+
+**示例（Node.js Express）**：
+
+```bash
+#!/usr/bin/env bash
+set -e
+
+cd "$(dirname "$0")/.."
+cd backend
+
+if [[ ! -d "node_modules" ]]; then
+  npm install
+fi
+
+npx prisma migrate deploy || true
+
+exec node dist/server.js
+```
+
+### 2. 写 `scripts/start-frontend.sh`（如果项目有前端）
+
+同样规范：
+
+- 从 `FRONTEND_PORT` 环境变量读端口
+- 切换到 `frontend/` 目录
+- 首次安装依赖
+- **前台启动** dev server
+
+**示例（React + Vite）**：
+
+```bash
+#!/usr/bin/env bash
+set -e
+
+cd "$(dirname "$0")/.."
+cd frontend
+
+if [[ ! -d "node_modules" ]]; then
+  pnpm install
+fi
+
+# Vite 用 --port 指定端口，从 FRONTEND_PORT 读
+exec pnpm dev --host 0.0.0.0 --port "${FRONTEND_PORT:?FRONTEND_PORT env required}"
+```
+
+### 3. **不要**自己启动服务
+
+shell 会在你写完脚本后自动：
+1. `kill` 掉旧进程（如果有）
+2. `nohup bash scripts/start-backend.sh > .phantom/runtime/backend.log 2>&1 &`（以及 frontend，如果有）
+3. 等端口就绪（60s 超时）
 4. 对每个 API 端点跑 happy path curl smoke
-5. `docker stop` + `docker rm`
+5. 成功后进程**常驻运行**（不清理）
 
-你只要把 Dockerfile 写对。
+你只要把脚本写对即可。
 
 ## 失败重试
 
-如果这是你的**第 2 次尝试**（第一次 docker build 失败），上面的 `{{EXTRA_NOTE}}` 会给出具体的错误信息。根据错误修改 Dockerfile 再写一次。
+如果这是你的**第 2 次尝试**（第一次启动失败），上面的 `{{EXTRA_NOTE}}` 会给出具体的错误（进程日志末尾）。根据错误修改脚本、依赖声明或配置。
 
 ## 产出
 
-- `Dockerfile`（必需）
-- `docker-compose.yml`（如果涉及数据库或多服务）
-- `.dockerignore`（建议）
+- `scripts/start-backend.sh`（必需，可执行）
+- `scripts/start-frontend.sh`（如果有前端）
 
 ---
 
 ## 硬约束
 
-- 不写 `PHASE_COMPLETE` 之类的 token（shell 自动判断成功/失败，不看你的输出）
-- 不要硬编码端口
-- 不要 `docker build` / `docker run` 自己跑（shell 会跑）
-- 如果发现源代码有 bug 导致 docker run 后服务崩溃，不要自己修源代码——shell 会把问题写进 return-packet.md 退回 dev
+- 脚本必须从 `PORT` / `FRONTEND_PORT` 环境变量读端口，不硬编码
+- 脚本最后一行必须是 `exec <启动命令>`（前台），不能用 `&` 后台化
+- 不要自己跑脚本（shell 会跑）
+- 不要写 Dockerfile 或 docker-compose.yml（本地运行模式）
+- 如果发现源代码有 bug 导致服务启动后崩溃，**不要**自己修源代码——shell 会把问题写进 return-packet.md 退回 dev

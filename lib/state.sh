@@ -12,16 +12,46 @@ PLAN_REVIEW_COMMENTS_FILE="$STATE_DIR/plan-review-comments.md"
 CHANGELOG_FILE="$STATE_DIR/changelog.md"                # dev 每轮追加
 RETURN_PACKET_FILE="$STATE_DIR/return-packet.md"        # 当前回流包
 LAST_CODE_REVIEW_FILE="$STATE_DIR/last-code-review.json"
-PORT_FILE="$STATE_DIR/port"
+PORT_FILE="$STATE_DIR/port"                             # 向后兼容：等同于 BACKEND_PORT_FILE
+BACKEND_PORT_FILE="$STATE_DIR/port.backend"
+FRONTEND_PORT_FILE="$STATE_DIR/port.frontend"
+RUNTIME_DIR="$STATE_DIR/runtime"                        # 本地运行时：PID + 日志
 
 # ── 端口预分配 ──────────────────────────────────────────
 
-ensure_port() {
+# 分配一个空闲端口到指定文件（如果文件不存在或为空）
+_allocate_port_to() {
+  local target="$1"
+  [[ -s "$target" ]] && return 0
+  mkdir -p "$(dirname "$target")"
+  python3 -c "import socket;s=socket.socket();s.bind(('',0));print(s.getsockname()[1]);s.close()" > "$target"
+}
+
+# 确保 backend 端口已分配，返回端口号
+ensure_backend_port() {
   mkdir -p "$STATE_DIR"
-  if [[ ! -s "$PORT_FILE" ]]; then
-    python3 -c "import socket;s=socket.socket();s.bind(('',0));print(s.getsockname()[1]);s.close()" > "$PORT_FILE"
-  fi
-  cat "$PORT_FILE"
+  _allocate_port_to "$BACKEND_PORT_FILE"
+  # 向后兼容：把 port.backend 同步到 port 文件
+  cat "$BACKEND_PORT_FILE" > "$PORT_FILE"
+  cat "$BACKEND_PORT_FILE"
+}
+
+# 确保 frontend 端口已分配，返回端口号
+ensure_frontend_port() {
+  mkdir -p "$STATE_DIR"
+  _allocate_port_to "$FRONTEND_PORT_FILE"
+  cat "$FRONTEND_PORT_FILE"
+}
+
+# 一次性分配两个端口（主循环启动时调用）
+ensure_ports() {
+  ensure_backend_port >/dev/null
+  ensure_frontend_port >/dev/null
+}
+
+# 向后兼容：旧代码里还在用 ensure_port，等同 backend
+ensure_port() {
+  ensure_backend_port
 }
 
 # ── 初始化 ──────────────────────────────────────────────

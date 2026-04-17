@@ -46,7 +46,10 @@
 
 ## 预分配端口
 
-`{{PORT}}`（已写入 `.phantom/port`，代码里必须从环境变量 `PORT` 读取，默认值用这个值）。
+- **Backend**：`{{BACKEND_PORT}}`（`.phantom/port.backend`，代码里从 `PORT` 或 `BACKEND_PORT` 环境变量读）
+- **Frontend**：`{{FRONTEND_PORT}}`（`.phantom/port.frontend`，代码里从 `FRONTEND_PORT` 环境变量读）
+
+两个端口都是预分配的空闲端口，避免多项目并行时冲突。**不要**硬编码端口。
 
 {{EXTRA_NOTE}}
 
@@ -184,16 +187,20 @@ Feature 按**功能模块 / 相关性分组**，每组 feature 会作为一个 s
 - 命名约定、日志格式示例
 - **禁用项**（reviewer 照这个 reject）：TODO/FIXME、console.log/print、硬编码端口、硬编码凭据、mock 冒充真数据、空函数体
 
-### 部署配置
-- `PORT` 环境变量（默认值用 `{{PORT}}`）
+### 部署配置（本地运行模式，不用 Docker）
+- **启动脚本**：
+  - `scripts/start-backend.sh` —— 后端启动脚本，从 `PORT` / `BACKEND_PORT` 环境变量读端口（{{BACKEND_PORT}}）
+  - `scripts/start-frontend.sh` —— 前端启动脚本（如有前端），从 `FRONTEND_PORT` 环境变量读端口（{{FRONTEND_PORT}}）
+  - 脚本负责：安装依赖（首次）→ 数据库迁移（如有）→ 前台启动（`exec`）
 - 环境变量清单（必须包含以下已有变量）：
+  - `PORT` / `BACKEND_PORT` —— 后端端口，默认值 `{{BACKEND_PORT}}`
+  - `FRONTEND_PORT` —— 前端端口，默认值 `{{FRONTEND_PORT}}`
   - `DATABASE_URL` —— PostgreSQL 连接串，宿主机已配置。**每个项目必须单独建 database**（不共用），连接串格式如 `postgresql://user:pass@host:5432/<project-name>`
   - `OPENAI_API_KEY` —— 如果项目需要调用大模型能力（AI 聊天、文本生成、嵌入等），使用 OpenAI API，宿主机已配置此 key
   - `BRAVE_API_KEY` —— Brave Search API，用于网页搜索功能，宿主机已配置
   - `TAVILY_API_KEY` —— Tavily Search API，用于 AI 搜索/研究功能，宿主机已配置
   - `FIRECRAWL_API_KEY` —— Firecrawl API，用于网页抓取/爬虫功能，宿主机已配置
-- Dockerfile base image / 构建步骤 / 健康检查 / 启动命令
-- 数据库迁移触发方式
+- 数据库迁移触发方式（在 `scripts/start-backend.sh` 里执行，或单独的 `scripts/migrate.sh`）
 
 ---
 

@@ -305,9 +305,50 @@ $issues_section
 EOF
 }
 
-# ── 阶段 4：deploy（docker build/run + shell 四项确定性判断） ──
+# ── 阶段 4：deploy（本地启动 + shell 确定性判断） ──
 #
+# AI 只负责写 scripts/start-backend.sh (+ start-frontend.sh)，
+# shell 负责：kill 旧 PID → nohup 启动新进程 → 等端口就绪 → smoke test
 # 返回：0 = pass，1 = fail（自试 2 次都失败后写 return-packet）
+
+# 辅助：kill 掉指定 PID 文件中的进程（如果存在且还活着）
+_kill_pid_file() {
+  local pid_file="$1"
+  [[ -f "$pid_file" ]] || return 0
+  local pid
+  pid=$(cat "$pid_file" 2>/dev/null)
+  if [[ -n "$pid" ]] && kill -0 "$pid" 2>/dev/null; then
+    log_info "杀掉旧进程 PID=$pid"
+    kill -TERM "$pid" 2>/dev/null || true
+    sleep 2
+    kill -0 "$pid" 2>/dev/null && kill -9 "$pid" 2>/dev/null || true
+    # 杀掉子进程（npm run 通常会 spawn 子进程）
+    pkill -P "$pid" 2>/dev/null || true
+  fi
+  rm -f "$pid_file"
+}
+
+# 辅助：kill 掉本项目所有运行时进程
+kill_runtime_processes() {
+  _kill_pid_file "$RUNTIME_DIR/backend.pid"
+  _kill_pid_file "$RUNTIME_DIR/frontend.pid"
+}
+
+# 辅助：等端口就绪
+_wait_port() {
+  local port="$1" timeout="${2:-60}" waited=0
+  while [[ $waited -lt $timeout ]]; do
+    if curl -sf -o /dev/null --max-time 2 "http://localhost:${port}/" 2>/dev/null \
+       || curl -sf -o /dev/null --max-time 2 "http://localhost:${port}/api/health" 2>/dev/null \
+       || (echo > "/dev/tcp/localhost/${port}") 2>/dev/null; then
+      return 0
+    fi
+    sleep 2
+    waited=$((waited + 2))
+  done
+  return 1
+}
+
 run_deploy_phase() {
   local work_dir="$1" features_csv="$2"
   set_phase_status "deploy" "in_progress"
@@ -316,8 +357,11 @@ run_deploy_phase() {
   iter=$(get_phase_iteration "deploy")
   log_phase "阶段 4/5: deploy（features=${features_csv}, iter=${iter}）"
 
-  local port
-  port=$(cat "$PORT_FILE" 2>/dev/null || echo 8080)
+  local backend_port frontend_port
+  backend_port=$(cat "$BACKEND_PORT_FILE" 2>/dev/null || cat "$PORT_FILE" 2>/dev/null || echo 8080)
+  frontend_port=$(cat "$FRONTEND_PORT_FILE" 2>/dev/null || echo 5173)
+
+  mkdir -p "$RUNTIME_DIR"
 
   # 自试 2 次
   local attempt=0
@@ -332,7 +376,7 @@ run_deploy_phase() {
     local prompt_file
     local extra_note=""
     if [[ -n "$deploy_err" ]]; then
-      extra_note="⚠️ 上次 docker build/run/smoke 失败，错误如下（请据此修 Dockerfile 或 docker-compose.yml）：
+      extra_note="⚠️ 上次启动失败，错误如下（请据此修启动脚本或源码）：
 
 $deploy_err"
     fi
@@ -342,61 +386,85 @@ $deploy_err"
     ai_run deploy "$(cat "$prompt_file")" "$log_file"
     rm -f "$prompt_file"
 
-    # Shell 侧四项确定性判断
+    # Shell 侧确定性判断
     deploy_err=""
-    if ! [[ -f "Dockerfile" ]]; then
-      deploy_err="Dockerfile 不存在"
+
+    # 0. 先 kill 旧进程
+    kill_runtime_processes
+
+    # 1. 校验启动脚本存在
+    if ! [[ -f "scripts/start-backend.sh" ]]; then
+      deploy_err="scripts/start-backend.sh 不存在"
+      log_warn "$deploy_err"
+      continue
+    fi
+    chmod +x scripts/start-backend.sh
+    local has_frontend=false
+    if [[ -f "scripts/start-frontend.sh" ]]; then
+      chmod +x scripts/start-frontend.sh
+      has_frontend=true
+    fi
+
+    # 2. 启动 backend
+    log_info "[1/3] 启动 backend（PORT=${backend_port}）"
+    (
+      cd "$work_dir" && \
+      PORT="$backend_port" BACKEND_PORT="$backend_port" FRONTEND_PORT="$frontend_port" \
+        nohup bash scripts/start-backend.sh > "$RUNTIME_DIR/backend.log" 2>&1 &
+      echo $! > "$RUNTIME_DIR/backend.pid"
+    )
+    sleep 1
+    local backend_pid
+    backend_pid=$(cat "$RUNTIME_DIR/backend.pid" 2>/dev/null)
+    if [[ -z "$backend_pid" ]] || ! kill -0 "$backend_pid" 2>/dev/null; then
+      deploy_err="backend 启动后立即退出（见 $RUNTIME_DIR/backend.log）$(tail -20 "$RUNTIME_DIR/backend.log" 2>/dev/null | sed 's/^/  /')"
       log_warn "$deploy_err"
       continue
     fi
 
-    local container_name="phantom-test-$(basename "$work_dir")"
-    # 清理可能残留的旧容器
-    docker rm -f "$container_name" >/dev/null 2>&1 || true
-
-    # 1. docker build
-    log_info "[1/4] docker build"
-    if ! docker build -t "$container_name" . >>"$log_file" 2>&1; then
-      deploy_err="docker build 失败（见日志 ${log_file}）"
-      log_warn "$deploy_err"
-      continue
-    fi
-
-    # 2. docker run
-    log_info "[2/4] docker run"
-    if ! docker run -d --name "$container_name" -e "PORT=$port" -p "$port:$port" "$container_name" >>"$log_file" 2>&1; then
-      deploy_err="docker run 失败（见日志 ${log_file}）"
-      log_warn "$deploy_err"
-      docker rm -f "$container_name" >/dev/null 2>&1 || true
-      continue
-    fi
-
-    # 3. 等容器进入 running 状态（最多 60s）
-    log_info "[3/4] 等待容器 running"
-    local waited=0
-    local running=false
-    while [[ $waited -lt 60 ]]; do
-      if docker ps --filter "name=^${container_name}$" --filter "status=running" --format '{{.Names}}' | grep -q "^${container_name}$"; then
-        running=true
-        break
+    # 3. 启动 frontend（如果有）
+    if [[ "$has_frontend" == true ]]; then
+      log_info "[2/3] 启动 frontend（FRONTEND_PORT=${frontend_port}）"
+      (
+        cd "$work_dir" && \
+        PORT="$backend_port" BACKEND_PORT="$backend_port" FRONTEND_PORT="$frontend_port" \
+          nohup bash scripts/start-frontend.sh > "$RUNTIME_DIR/frontend.log" 2>&1 &
+        echo $! > "$RUNTIME_DIR/frontend.pid"
+      )
+      sleep 1
+      local frontend_pid
+      frontend_pid=$(cat "$RUNTIME_DIR/frontend.pid" 2>/dev/null)
+      if [[ -z "$frontend_pid" ]] || ! kill -0 "$frontend_pid" 2>/dev/null; then
+        deploy_err="frontend 启动后立即退出（见 $RUNTIME_DIR/frontend.log）$(tail -20 "$RUNTIME_DIR/frontend.log" 2>/dev/null | sed 's/^/  /')"
+        log_warn "$deploy_err"
+        kill_runtime_processes
+        continue
       fi
-      sleep 2
-      waited=$((waited + 2))
-    done
+    fi
 
-    if [[ "$running" != true ]]; then
-      deploy_err="容器 60s 内未进入 running 状态"
-      docker logs "$container_name" >>"$log_file" 2>&1 || true
+    # 4. 等端口就绪（backend 60s）
+    log_info "[3/3] 等待 backend 端口 ${backend_port} 就绪"
+    if ! _wait_port "$backend_port" 60; then
+      deploy_err="backend 端口 ${backend_port} 60s 内未就绪，日志末尾：
+$(tail -30 "$RUNTIME_DIR/backend.log" 2>/dev/null | sed 's/^/  /')"
       log_warn "$deploy_err"
-      docker rm -f "$container_name" >/dev/null 2>&1 || true
+      kill_runtime_processes
       continue
     fi
 
-    # 额外给应用 3s 启动时间
-    sleep 3
+    if [[ "$has_frontend" == true ]]; then
+      log_info "等待 frontend 端口 ${frontend_port} 就绪"
+      if ! _wait_port "$frontend_port" 60; then
+        deploy_err="frontend 端口 ${frontend_port} 60s 内未就绪，日志末尾：
+$(tail -30 "$RUNTIME_DIR/frontend.log" 2>/dev/null | sed 's/^/  /')"
+        log_warn "$deploy_err"
+        kill_runtime_processes
+        continue
+      fi
+    fi
 
-    # 4. Smoke：对每个 API 端点跑 happy path curl，要求非 5xx
-    log_info "[4/4] Smoke 测试所有 API 端点"
+    # 5. Smoke 测试：对每个 API 端点跑 happy path curl，要求非 5xx
+    log_info "Smoke 测试所有 API 端点"
     local smoke_failures=""
     local endpoints
     endpoints=$(_extract_endpoints_from_plan)
@@ -410,7 +478,7 @@ $deploy_err"
       local method path
       method=$(echo "$ep" | awk '{print $1}')
       path=$(echo "$ep" | awk '{print $2}')
-      local url="http://localhost:${port}${path}"
+      local url="http://localhost:${backend_port}${path}"
       local code
       code=$(curl -s -o /dev/null -w '%{http_code}' -X "$method" --max-time 10 "$url" 2>/dev/null || echo "000")
       echo "    [$method $path] → HTTP $code" >>"$log_file"
@@ -422,17 +490,21 @@ $deploy_err"
 
     if [[ -n "$smoke_failures" ]]; then
       deploy_err="Smoke 测试失败：
-$smoke_failures"
+$smoke_failures
+backend.log 末尾：
+$(tail -30 "$RUNTIME_DIR/backend.log" 2>/dev/null | sed 's/^/  /')"
       log_warn "$deploy_err"
-      # 失败时清理容器，下一轮重试会重新 run
-      docker stop "$container_name" >/dev/null 2>&1 || true
-      docker rm "$container_name" >/dev/null 2>&1 || true
+      kill_runtime_processes
       continue
     fi
 
-    # 成功：容器保持运行，不清理
-    log_ok "Deploy 通过：docker build/run/smoke 全绿"
-    log_info "容器 ${container_name} 常驻运行中（端口 ${port}）"
+    # 成功：进程保持运行，不清理
+    log_ok "Deploy 通过：本地进程启动 + smoke 全绿"
+    log_info "Backend PID=$(cat $RUNTIME_DIR/backend.pid) 端口 ${backend_port} 常驻"
+    if [[ "$has_frontend" == true ]]; then
+      log_info "Frontend PID=$(cat $RUNTIME_DIR/frontend.pid) 端口 ${frontend_port} 常驻"
+    fi
+    log_info "运行时日志：$RUNTIME_DIR/{backend,frontend}.log"
     set_phase_status "deploy" "completed"
     return 0
   done

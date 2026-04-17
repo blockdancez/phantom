@@ -24,14 +24,17 @@ render_prompt() {
   output_file=$(mktemp)
 
   local state_req_file requirements="" plan="" plan_locked=""
-  local changelog="" return_packet="" port=""
+  local changelog="" return_packet="" port="" backend_port="" frontend_port=""
   state_req_file=$(get_state '.requirements_file')
   [[ -f "$state_req_file" ]]                  && requirements=$(cat "$state_req_file")
   [[ -f ".phantom/plan.md" ]]                 && plan=$(cat ".phantom/plan.md")
   [[ -f ".phantom/plan.locked.md" ]]          && plan_locked=$(cat ".phantom/plan.locked.md")
   [[ -f ".phantom/changelog.md" ]]            && changelog=$(cat ".phantom/changelog.md")
   [[ -f ".phantom/return-packet.md" ]]        && return_packet=$(cat ".phantom/return-packet.md")
+  [[ -f ".phantom/port.backend" ]]            && backend_port=$(cat ".phantom/port.backend")
+  [[ -f ".phantom/port.frontend" ]]           && frontend_port=$(cat ".phantom/port.frontend")
   [[ -f ".phantom/port" ]]                    && port=$(cat ".phantom/port")
+  [[ -z "$port" && -n "$backend_port" ]]      && port="$backend_port"
 
   TPL_REQUIREMENTS="$requirements" \
   TPL_PLAN="$plan" \
@@ -43,6 +46,8 @@ render_prompt() {
   TPL_PROJECT_DIR="$work_dir" \
   TPL_HOME="$HOME" \
   TPL_PORT="$port" \
+  TPL_BACKEND_PORT="$backend_port" \
+  TPL_FRONTEND_PORT="$frontend_port" \
   TPL_TEMPLATE="$template_file" \
   TPL_OUTPUT="$output_file" \
   python3 - <<'PYEOF'
@@ -58,6 +63,8 @@ mapping = {
     '{{PROJECT_DIR}}':   os.environ['TPL_PROJECT_DIR'],
     '{{HOME}}':          os.environ['TPL_HOME'],
     '{{PORT}}':          os.environ['TPL_PORT'],
+    '{{BACKEND_PORT}}':  os.environ['TPL_BACKEND_PORT'],
+    '{{FRONTEND_PORT}}': os.environ['TPL_FRONTEND_PORT'],
 }
 content = open(os.environ['TPL_TEMPLATE']).read()
 for k, v in mapping.items():

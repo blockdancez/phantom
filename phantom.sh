@@ -119,12 +119,32 @@ done
 
 # ── Delete 模式 ──────────────────────────────────────────
 
+# 辅助：kill 掉项目的运行时进程
+_kill_project_runtime() {
+  local proj_dir="$1"
+  local runtime_dir="$proj_dir/.phantom/runtime"
+  [[ -d "$runtime_dir" ]] || return 0
+  for pid_file in "$runtime_dir/backend.pid" "$runtime_dir/frontend.pid"; do
+    [[ -f "$pid_file" ]] || continue
+    local pid
+    pid=$(cat "$pid_file" 2>/dev/null)
+    if [[ -n "$pid" ]] && kill -0 "$pid" 2>/dev/null; then
+      log_info "杀掉残留进程 PID=$pid ($(basename "$pid_file"))"
+      kill -TERM "$pid" 2>/dev/null || true
+      sleep 1
+      kill -0 "$pid" 2>/dev/null && kill -9 "$pid" 2>/dev/null || true
+      pkill -P "$pid" 2>/dev/null || true
+    fi
+  done
+}
+
 if [[ "$DELETE" == true ]]; then
   # 当前目录本身就是项目
   if [[ -z "$PROJECT_DIR" ]] && [[ -f "$INVOKE_CWD/.phantom/state.json" ]]; then
     printf "确认清理当前目录的 phantom 状态（.phantom/ 目录将被删除，代码文件保留）？(y/N): "
     read -r CONFIRM
     if [[ "$CONFIRM" == "y" || "$CONFIRM" == "Y" ]]; then
+      _kill_project_runtime "$INVOKE_CWD"
       rm -rf "$INVOKE_CWD/.phantom"
       log_ok "已清理 .phantom/"
     else
@@ -187,6 +207,7 @@ if [[ "$DELETE" == true ]]; then
   printf "确认删除项目 ${RED}$DEL_NAME${NC}？(y/N): "
   read -r CONFIRM
   if [[ "$CONFIRM" == "y" || "$CONFIRM" == "Y" ]]; then
+    _kill_project_runtime "$DEL_DIR"
     rm -rf "$DEL_DIR"
     log_ok "已删除项目: $DEL_NAME"
   else
@@ -320,16 +341,22 @@ else
   init_state "$REQ_FILE" "$PROJECT_DIR"
   log_ok "状态已初始化"
 
-  PORT=$(ensure_port)
-  export PORT
-  log_info "已分配端口: $PORT (持久化到 .phantom/port)"
+  ensure_ports
+  BACKEND_PORT=$(cat "$BACKEND_PORT_FILE")
+  FRONTEND_PORT=$(cat "$FRONTEND_PORT_FILE")
+  PORT="$BACKEND_PORT"
+  export BACKEND_PORT FRONTEND_PORT PORT
+  log_info "已分配端口: backend=${BACKEND_PORT}, frontend=${FRONTEND_PORT}"
 fi
 
-# Resume / 新项目 都需要把 PORT 注入环境，供后续所有阶段使用
-if [[ -z "${PORT:-}" ]]; then
-  PORT=$(ensure_port)
-  export PORT
-  log_info "项目端口: $PORT"
+# Resume / 新项目 都需要把端口注入环境，供后续所有阶段使用
+if [[ -z "${BACKEND_PORT:-}" ]]; then
+  ensure_ports
+  BACKEND_PORT=$(cat "$BACKEND_PORT_FILE")
+  FRONTEND_PORT=$(cat "$FRONTEND_PORT_FILE")
+  PORT="$BACKEND_PORT"
+  export BACKEND_PORT FRONTEND_PORT PORT
+  log_info "项目端口: backend=${BACKEND_PORT}, frontend=${FRONTEND_PORT}"
 fi
 
 # ── 主循环（harness-v2 group-per-sprint） ──────────────

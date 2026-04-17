@@ -22,7 +22,8 @@
 
 ## 预分配端口
 
-`{{PORT}}`（`.phantom/port`）。
+- **Backend**：`{{BACKEND_PORT}}`（`.phantom/port.backend`）
+- **Frontend**：`{{FRONTEND_PORT}}`（`.phantom/port.frontend`，如果有前端）
 
 {{EXTRA_NOTE}}
 
@@ -30,26 +31,29 @@
 
 ### 第一步：确认被测对象在线
 
-Deploy phase 已经构建并启动了 Docker 容器（常驻运行）。你**不需要**自己 docker build 或 docker run。
+Deploy phase 已经**本地启动**了后端（可能还有前端），进程常驻运行。你**不需要**自己启动服务。
 
 ```bash
-PORT=$(cat .phantom/port)
-CONTAINER="phantom-test-$(basename $(pwd))"
+BACKEND_PORT=$(cat .phantom/port.backend)
+FRONTEND_PORT=$(cat .phantom/port.frontend 2>/dev/null || echo "")
 
-# 验证容器在跑
-if docker ps --filter "name=^${CONTAINER}$" --filter "status=running" --format '{{.Names}}' | grep -q .; then
-  echo "容器 $CONTAINER 在线，端口 $PORT"
+# 验证后端进程存活
+if [[ -f .phantom/runtime/backend.pid ]] && kill -0 "$(cat .phantom/runtime/backend.pid)" 2>/dev/null; then
+  echo "Backend 进程在线，端口 $BACKEND_PORT"
 else
-  echo "容器 $CONTAINER 不在线，尝试本地启动"
-  # 回退：本地跑
-  PORT=$PORT <按项目技术栈跑 npm start / python main.py / go run . / cargo run>
+  echo "Backend 未运行，deploy 失败" >&2
 fi
 
 # 验证端口可达
-curl -sf http://localhost:$PORT/ > /dev/null || curl -sf http://localhost:$PORT/api/health > /dev/null
+curl -sf http://localhost:$BACKEND_PORT/ > /dev/null \
+  || curl -sf http://localhost:$BACKEND_PORT/api/health > /dev/null
+
+# 运行时日志在这里，失败时务必读
+# .phantom/runtime/backend.log
+# .phantom/runtime/frontend.log
 ```
 
-**如果容器不在线且本地也启动失败**：直接给这轮打一个低分（< 30），写清楚原因，不要继续。
+**如果进程不在线且本地也启动失败**：直接给这轮打一个低分（< 30），写清楚原因，不要继续。
 
 ### 第二步：数据库重置（如果有 DB）
 
@@ -113,7 +117,7 @@ import { test, expect } from '@playwright/test';
 
 test.describe('feature-2-todo-crud', () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto(`http://localhost:${process.env.PORT || 3000}/`);
+    await page.goto(`http://localhost:${process.env.FRONTEND_PORT || process.env.PORT}/`);
     await page.waitForFunction(() => window.__TEST__?.ready);
   });
 
@@ -143,7 +147,7 @@ import { defineConfig } from '@playwright/test';
 
 export default defineConfig({
   testDir: '../.playwright/tests',
-  baseURL: `http://localhost:${process.env.PORT || 3000}`,
+  baseURL: `http://localhost:${process.env.FRONTEND_PORT || process.env.PORT}`,
   timeout: 30000,
   retries: 1,
   use: {
@@ -185,7 +189,7 @@ cd frontend && npx playwright install --with-deps chromium && npx playwright tes
 
 ### 第六步：清理
 
-如果是本地跑的开发服务器，杀掉对应进程。**不要清理 Docker 容器**（容器由 deploy phase 管理，常驻运行）。
+**不要 kill 任何进程**。Backend / frontend 进程由 deploy phase 管理，常驻运行（下次 deploy 才会重启）。
 
 ## 产出：两个文件
 
@@ -278,6 +282,6 @@ Test 评分 <X>/100，低于阈值 90。
 - 前端项目必须生成 Playwright 脚本并执行（不是用 MCP 实时操作浏览器）
 - 脚本必须用 `data-testid` 定位，禁止 CSS 选择器或 XPath
 - 可用 Chrome DevTools MCP 辅助调试失败场景
-- **不要清理 Docker 容器**（由 deploy phase 管理）
+- **不要 kill 任何进程**（backend/frontend 由 deploy phase 管理）
 - 分数要有依据，不能拍脑袋
 - 宁可低分也不要给假高分
