@@ -104,7 +104,7 @@ async def run_phantom(
     bin_path = phantom_bin or shutil.which("phantom")
     if not bin_path:
         raise RuntimeError(
-            "找不到 phantom CLI（PATH 上没有 phantom）。请先在 AIDevelop 仓库根目录跑 ./install.sh。"
+            "找不到 phantom CLI（PATH 上没有 phantom）。请先在 PhantomCLI 仓库根目录跑 ./install.sh。"
         )
 
     logger.info("启动 phantom 子进程 bin=%s args=%s cwd=%s", bin_path, args, workspace)

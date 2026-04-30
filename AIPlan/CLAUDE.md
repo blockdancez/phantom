@@ -20,7 +20,7 @@ pip install -e '.[dev]'
 .venv/bin/pytest tests/test_agent.py::test_first_run_invokes_phantom_plan_with_requirement_file -v
 
 # 后台启动 worker（连 scheduler 拉任务）
-bash scripts/start.sh
+bash scripts/service.sh start
 tail -f logs/ai-plan.log
 
 # 前台跑（调试用）
@@ -52,7 +52,7 @@ tail -f logs/ai-plan.log
 - 子进程 cwd = workspace（phantom 在那里读写 `.phantom/state.json`）
 - 父进程环境**全量继承**（`PHANTOM_GENERATOR_BACKEND` / `PHANTOM_CODE_REVIEWER_BACKEND` / `OPENAI_API_KEY` 等都靠这个透传）
 - stdout 每行 → `ctx.heartbeat()`；stderr 单独缓冲，仅在失败时随异常上报
-- 找不到 `phantom` 二进制 → 提示先在 AIDevelop 仓库跑 `./install.sh`
+- 找不到 `phantom` 二进制 → 提示先在 PhantomCLI 仓库跑 `./install.sh`
 
 ### 错误分类（runner.py: `classify_phantom_failure`）
 phantom 子进程失败时根据 stdout+stderr 关键字决定异常类型：

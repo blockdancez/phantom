@@ -15,7 +15,7 @@ python3.12 -m venv .venv && source .venv/bin/activate
 pip install -e '.[dev]'
 ```
 
-前置：phantom CLI 已装到 PATH（`AIDevelop/install.sh`）；AIJuicer scheduler + Redis 已起。
+前置：phantom CLI 已装到 PATH（`PhantomCLI/install.sh`）；AIJuicer scheduler + Redis 已起。
 
 ## 跑测试
 
@@ -31,7 +31,7 @@ export AIJUICER_SERVER=http://127.0.0.1:8000
 export PHANTOM_GENERATOR_BACKEND=claude
 export PHANTOM_CODE_REVIEWER_BACKEND=codex
 
-bash scripts/start.sh
+bash scripts/service.sh start
 tail -f logs/ai-devtest.log
 ```
 

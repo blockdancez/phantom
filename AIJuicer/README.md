@@ -58,7 +58,7 @@ cd webui && pnpm install && cd ..
 make migrate
 
 # 4. 一键起全栈
-bash scripts/run_all.sh
+bash scripts/service.sh start
 # scheduler :8000 + 6 个 agent + webui :3000
 # Ctrl+C 统一清理
 ```

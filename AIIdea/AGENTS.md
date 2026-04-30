@@ -119,9 +119,9 @@ AIIdea/
 # 1) 复制环境文件
 cp .env.example .env        # 填 OPENAI_API_KEY；DATABASE_URL 本地保持 localhost
 # 2) 后端（读 PORT / BACKEND_PORT / .phantom/port.backend，缺省 53839；自动跑 alembic upgrade head）
-./scripts/start-backend.sh
+./scripts/service.sh start backend
 # 3) 前端（读 FRONTEND_PORT / .phantom/port.frontend，缺省 53840；会自动 install）
-./scripts/start-frontend.sh
+./scripts/service.sh start frontend
 ```
 
 ### Docker（**注意 Postgres 不在 compose 里**）
@@ -236,4 +236,4 @@ curl -X POST http://localhost:53839/api/pipeline/trigger/analyze              # 
 2. 改 API 契约前，搜 changelog 里有没有 iteration 专门讨论过那个端点——iter14（per_page 迁移）、iter15（stats 503 + service_name）、iter21（analysis_result_id 回填 + sources filter 重写）是几个关键节点。
 3. 不要删掉看似多余的 guard（三重 agent guard、`_coerce_async_url`、envelope 的 `BaseHTTPMiddleware.dispatch` 兜底 `except`、`_RUNNING_KEY_ALIASES`），它们都是历次 review 补上的，删了就回归。
 4. 新增源优先走 `sources_registry.py`，不要新写 collector 类。
-5. 测试 pytest 全绿 ≠ 功能在浏览器里能跑——前端无独立单测框架，改前端必须手动跑 `./scripts/start-frontend.sh` 打开浏览器验证。
+5. 测试 pytest 全绿 ≠ 功能在浏览器里能跑——前端无独立单测框架，改前端必须手动跑 `./scripts/service.sh start frontend` 打开浏览器验证。
