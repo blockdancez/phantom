@@ -1,0 +1,18 @@
+__pycache__/
+*.pyc
+*.egg-info/
+.env
+node_modules/
+.next/
+*.tsbuildinfo
+.pytest_cache/
+.phantom
+.playwright-mcp
+.idea
+.DS_Store
+*.coverage
+.claude
+# Product experience runtime data — regenerated locally / on server
+backend/data/browser_profile/
+backend/data/product_screenshots/
+backend/data/codex_experience/

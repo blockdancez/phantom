@@ -1,0 +1,17 @@
+__pycache__/
+*.pyc
+*.pyo
+*.db
+.env
+*.egg-info/
+dist/
+build/
+.pytest_cache/
+node_modules/
+frontend/dist/
+.phantom/
+.playwright-mcp/
+.idea
+logs/
+backend/logs/
+.pids/

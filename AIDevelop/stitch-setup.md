@@ -1,0 +1,963 @@
+- main [ref=e5]:
+  - iframe [ref=e7]:
+    - main [ref=f1e5]:
+      - iframe [ref=f1e6]:
+        - generic [active] [ref=f2e1]:
+          - link "Skip to content" [ref=f2e2] [cursor=pointer]:
+            - /url: "#_top"
+          - generic [ref=f2e3]:
+            - banner [ref=f2e4]:
+              - generic [ref=f2e5]:
+                - link "Stitch logo Stitch" [ref=f2e7] [cursor=pointer]:
+                  - /url: /docs/
+                  - img "Stitch logo" [ref=f2e8]
+                  - generic [ref=f2e9]: Stitch
+                - button "Search" [ref=f2e12] [cursor=pointer]:
+                  - img [ref=f2e13]
+                  - generic [ref=f2e15]: Search
+                  - generic [ref=f2e16]:
+                    - generic [ref=f2e17]: ⌘
+                    - generic [ref=f2e18]: K
+                - generic [ref=f2e19]:
+                  - link "X" [ref=f2e21] [cursor=pointer]:
+                    - /url: https://x.com/stitchbygoogle
+                    - generic [ref=f2e22]: X
+                    - img [ref=f2e23]
+                  - generic [ref=f2e26]:
+                    - generic [ref=f2e27]: Select theme
+                    - img
+                    - combobox "Select theme" [ref=f2e28] [cursor=pointer]:
+                      - option "Dark"
+                      - option "Light"
+                      - option "Auto" [selected]
+                    - img
+            - navigation "Main":
+              - list [ref=f2e32]:
+                - listitem [ref=f2e33]:
+                  - group [ref=f2e34]:
+                    - generic "Stitch" [ref=f2e35] [cursor=pointer]:
+                      - generic [ref=f2e36]: Stitch
+                      - img [ref=f2e37]
+                    - list [ref=f2e39]:
+                      - listitem [ref=f2e40]:
+                        - link "Everything you need to know" [ref=f2e41] [cursor=pointer]:
+                          - /url: /docs/learn/overview/
+                      - listitem [ref=f2e42]:
+                        - link "Effective Prompting" [ref=f2e43] [cursor=pointer]:
+                          - /url: /docs/learn/prompting/
+                      - listitem [ref=f2e44]:
+                        - link "Device Types" [ref=f2e45] [cursor=pointer]:
+                          - /url: /docs/learn/device-types/
+                      - listitem [ref=f2e46]:
+                        - link "Design Modes" [ref=f2e47] [cursor=pointer]:
+                          - /url: /docs/learn/design-modes/
+                      - listitem [ref=f2e48]:
+                        - link "Generate design variations" [ref=f2e49] [cursor=pointer]:
+                          - /url: /docs/learn/variants/
+                      - listitem [ref=f2e50]:
+                        - link "Controls & Hotkeys" [ref=f2e51] [cursor=pointer]:
+                          - /url: /docs/learn/controls/
+                - listitem [ref=f2e52]:
+                  - group [ref=f2e53]:
+                    - generic "MCP" [ref=f2e54] [cursor=pointer]:
+                      - generic [ref=f2e55]: MCP
+                      - img [ref=f2e56]
+                    - list [ref=f2e58]:
+                      - listitem [ref=f2e59]:
+                        - link "Setup & Authentication" [ref=f2e60] [cursor=pointer]:
+                          - /url: /docs/mcp/setup/
+                      - listitem [ref=f2e61]:
+                        - link "Guide" [ref=f2e62] [cursor=pointer]:
+                          - /url: /docs/mcp/guide/
+                      - listitem [ref=f2e63]:
+                        - link "Reference" [ref=f2e64] [cursor=pointer]:
+                          - /url: /docs/mcp/reference/
+                - listitem [ref=f2e65]:
+                  - group [ref=f2e66]:
+                    - generic "SDK" [ref=f2e67] [cursor=pointer]:
+                      - generic [ref=f2e68]: SDK
+                      - img [ref=f2e69]
+                    - list [ref=f2e71]:
+                      - listitem [ref=f2e72]:
+                        - link "Build your first design" [ref=f2e73] [cursor=pointer]:
+                          - /url: /docs/sdk/tutorial/
+                      - listitem [ref=f2e74]:
+                        - link "Use with AI SDK" [ref=f2e75] [cursor=pointer]:
+                          - /url: /docs/sdk/ai-sdk/
+                      - listitem [ref=f2e76]:
+                        - link "Agent-driven workflows" [ref=f2e77] [cursor=pointer]:
+                          - /url: /docs/sdk/agent-workflows/
+                      - listitem [ref=f2e78]:
+                        - link "How to edit a screen" [ref=f2e79] [cursor=pointer]:
+                          - /url: /docs/sdk/edit-screen/
+                      - listitem [ref=f2e80]:
+                        - link "How to generate variants" [ref=f2e81] [cursor=pointer]:
+                          - /url: /docs/sdk/generate-variants/
+                      - listitem [ref=f2e82]:
+                        - link "How to download artifacts" [ref=f2e83] [cursor=pointer]:
+                          - /url: /docs/sdk/download-artifacts/
+                      - listitem [ref=f2e84]:
+                        - link "How to extract themes" [ref=f2e85] [cursor=pointer]:
+                          - /url: /docs/sdk/extract-themes/
+                      - listitem [ref=f2e86]:
+                        - link "Reference" [ref=f2e87] [cursor=pointer]:
+                          - /url: /docs/sdk/reference/
+                      - listitem [ref=f2e88]:
+                        - link "Architecture" [ref=f2e89] [cursor=pointer]:
+                          - /url: /docs/sdk/architecture/
+                - listitem [ref=f2e90]:
+                  - group [ref=f2e91]:
+                    - generic "DESIGN.md" [ref=f2e92] [cursor=pointer]:
+                      - generic [ref=f2e93]: DESIGN.md
+                      - img [ref=f2e94]
+                    - list [ref=f2e96]:
+                      - listitem [ref=f2e97]:
+                        - link "What is DESIGN.md?" [ref=f2e98] [cursor=pointer]:
+                          - /url: /docs/design-md/overview/
+                      - listitem [ref=f2e99]:
+                        - link "The format" [ref=f2e100] [cursor=pointer]:
+                          - /url: /docs/design-md/format/
+                      - listitem [ref=f2e101]:
+                        - link "View, edit, and export" [ref=f2e102] [cursor=pointer]:
+                          - /url: /docs/design-md/usage/
+            - generic [ref=f2e104]:
+              - complementary [ref=f2e105]:
+                - navigation "On this page" [ref=f2e110]:
+                  - heading "On this page" [level=2] [ref=f2e111]
+                  - list [ref=f2e112]:
+                    - listitem [ref=f2e113]:
+                      - link "Overview" [ref=f2e114] [cursor=pointer]:
+                        - /url: "#_top"
+                    - listitem [ref=f2e115]:
+                      - link "Understanding Remote MCP" [ref=f2e116] [cursor=pointer]:
+                        - /url: "#understanding-remote-mcp"
+                    - listitem [ref=f2e117]:
+                      - link "API Keys vs OAuth" [ref=f2e118] [cursor=pointer]:
+                        - /url: "#api-keys-vs-oauth"
+                      - list [ref=f2e119]:
+                        - listitem [ref=f2e120]:
+                          - link "When to use which" [ref=f2e121] [cursor=pointer]:
+                            - /url: "#when-to-use-which"
+                    - listitem [ref=f2e122]:
+                      - link "API Key Setup" [ref=f2e123] [cursor=pointer]:
+                        - /url: "#api-key-setup"
+                    - listitem [ref=f2e124]:
+                      - link "Storing API Keys" [ref=f2e125] [cursor=pointer]:
+                        - /url: "#storing-api-keys"
+                    - listitem [ref=f2e126]:
+                      - link "MCP Client Setup" [ref=f2e127] [cursor=pointer]:
+                        - /url: "#mcp-client-setup"
+                      - list [ref=f2e128]:
+                        - listitem [ref=f2e129]:
+                          - link "Gemini CLI" [ref=f2e130] [cursor=pointer]:
+                            - /url: "#gemini-cli"
+                        - listitem [ref=f2e131]:
+                          - link "Cursor" [ref=f2e132] [cursor=pointer]:
+                            - /url: "#cursor"
+                        - listitem [ref=f2e133]:
+                          - link "Antigravity" [ref=f2e134] [cursor=pointer]:
+                            - /url: "#antigravity"
+                        - listitem [ref=f2e135]:
+                          - link "VSCode" [ref=f2e136] [cursor=pointer]:
+                            - /url: "#vscode"
+                        - listitem [ref=f2e137]:
+                          - link "Claude Code" [ref=f2e138] [cursor=pointer]:
+                            - /url: "#claude-code"
+                    - listitem [ref=f2e139]:
+                      - link "OAuth Setup" [ref=f2e140] [cursor=pointer]:
+                        - /url: "#oauth-setup"
+                      - list [ref=f2e141]:
+                        - listitem [ref=f2e142]:
+                          - link "1. Install the Google Cloud SDK" [ref=f2e143] [cursor=pointer]:
+                            - /url: "#1-install-the-google-cloud-sdk"
+                        - listitem [ref=f2e144]:
+                          - link "2. Double-Layer Authentication" [ref=f2e145] [cursor=pointer]:
+                            - /url: "#2-double-layer-authentication"
+                        - listitem [ref=f2e146]:
+                          - link "3. Configure the Project & Permissions" [ref=f2e147] [cursor=pointer]:
+                            - /url: "#3-configure-the-project--permissions"
+                        - listitem [ref=f2e148]:
+                          - link "4. Generate the Secrets (.env)" [ref=f2e149] [cursor=pointer]:
+                            - /url: "#4-generate-the-secrets-env"
+                        - listitem [ref=f2e150]:
+                          - link "5. Keeping it Fresh" [ref=f2e151] [cursor=pointer]:
+                            - /url: "#5-keeping-it-fresh"
+                    - listitem [ref=f2e152]:
+                      - link "Setting up your MCP Client" [ref=f2e153] [cursor=pointer]:
+                        - /url: "#setting-up-your-mcp-client"
+                      - list [ref=f2e154]:
+                        - listitem [ref=f2e155]:
+                          - link "Cursor" [ref=f2e156] [cursor=pointer]:
+                            - /url: "#cursor-1"
+                        - listitem [ref=f2e157]:
+                          - link "Antigravity" [ref=f2e158] [cursor=pointer]:
+                            - /url: "#antigravity-1"
+                        - listitem [ref=f2e159]:
+                          - link "VSCode" [ref=f2e160] [cursor=pointer]:
+                            - /url: "#vscode-1"
+                        - listitem [ref=f2e161]:
+                          - link "Claude Code" [ref=f2e162] [cursor=pointer]:
+                            - /url: "#claude-code-1"
+                        - listitem [ref=f2e163]:
+                          - link "Gemini CLI" [ref=f2e164] [cursor=pointer]:
+                            - /url: "#gemini-cli-1"
+                    - listitem [ref=f2e165]:
+                      - link "Available Tools" [ref=f2e166] [cursor=pointer]:
+                        - /url: "#available-tools"
+                      - list [ref=f2e167]:
+                        - listitem [ref=f2e168]:
+                          - link "Project Management" [ref=f2e169] [cursor=pointer]:
+                            - /url: "#project-management"
+                        - listitem [ref=f2e170]:
+                          - link "Screen Management" [ref=f2e171] [cursor=pointer]:
+                            - /url: "#screen-management"
+                        - listitem [ref=f2e172]:
+                          - link "AI Generation" [ref=f2e173] [cursor=pointer]:
+                            - /url: "#ai-generation"
+                        - listitem [ref=f2e174]:
+                          - link "Design Systems" [ref=f2e175] [cursor=pointer]:
+                            - /url: "#design-systems"
+                    - listitem [ref=f2e176]:
+                      - link "Terms of Service" [ref=f2e177] [cursor=pointer]:
+                        - /url: "#terms-of-service"
+              - main [ref=f2e179]:
+                - generic [ref=f2e182]:
+                  - paragraph [ref=f2e183]: Learn
+                  - heading "Stitch via MCP" [level=1] [ref=f2e184]
+                  - paragraph [ref=f2e185]: Connect IDEs and CLIs to Stitch using the Model Context Protocol.
+                - generic [ref=f2e187]:
+                  - generic [ref=f2e188]:
+                    - paragraph [ref=f2e189]: The Stitch Model Context Protocol (MCP) server allows your favorite AI tools like Cursor, Antigravity, or the Gemini CLI to directly interact with your Stitch projects.
+                    - generic [ref=f2e190]:
+                      - heading "Understanding Remote MCP" [level=2] [ref=f2e191]
+                      - link "Section titled “Understanding Remote MCP”" [ref=f2e192] [cursor=pointer]:
+                        - /url: "#understanding-remote-mcp"
+                        - img [ref=f2e194]
+                        - generic [ref=f2e196]: Section titled “Understanding Remote MCP”
+                    - paragraph [ref=f2e197]:
+                      - text: Most MCP servers you use are
+                      - strong [ref=f2e198]: Local
+                      - text: . They read files on your hard drive or run scripts on your machine. Stitch is a
+                      - strong [ref=f2e199]: Remote
+                      - text: MCP server. It lives in the cloud.
+                    - paragraph [ref=f2e200]: Because it is remote, it requires a secure “handshake” to ensure that the AI agent acting on your behalf actually has permission to modify your designs.
+                    - generic [ref=f2e201]:
+                      - heading "API Keys vs OAuth" [level=2] [ref=f2e202]
+                      - link "Section titled “API Keys vs OAuth”" [ref=f2e203] [cursor=pointer]:
+                        - /url: "#api-keys-vs-oauth"
+                        - img [ref=f2e205]
+                        - generic [ref=f2e207]: Section titled “API Keys vs OAuth”
+                    - paragraph [ref=f2e208]: "The Stitch MCP server supports two authentication methods:"
+                    - list [ref=f2e209]:
+                      - listitem [ref=f2e210]:
+                        - strong [ref=f2e211]: "API Keys:"
+                        - text: Persistent keys generated in the
+                        - link "Stitch Settings page" [ref=f2e212] [cursor=pointer]:
+                          - /url: /settings
+                        - text: .
+                      - listitem [ref=f2e213]:
+                        - strong [ref=f2e214]: "OAuth:"
+                        - text: A browser-based authentication flow required by specific AI clients that do not support manual key entry, or for environments where storing persistent secrets on disk is restricted.
+                    - generic [ref=f2e215]:
+                      - heading "When to use which" [level=3] [ref=f2e216]
+                      - link "Section titled “When to use which”" [ref=f2e217] [cursor=pointer]:
+                        - /url: "#when-to-use-which"
+                        - img [ref=f2e219]
+                        - generic [ref=f2e221]: Section titled “When to use which”
+                    - paragraph [ref=f2e222]: In most cases, API Keys are the easiest approach. They are the fastest way to get your tool connected. However, OAuth is worth the extra minute of setup in specific situations.
+                    - table [ref=f2e223]:
+                      - rowgroup [ref=f2e224]:
+                        - row "Scenario Use API Keys if… Use OAuth if…" [ref=f2e225]:
+                          - columnheader "Scenario" [ref=f2e226]
+                          - columnheader "Use API Keys if…" [ref=f2e227]:
+                            - text: Use
+                            - strong [ref=f2e228]: API Keys
+                            - text: if…
+                          - columnheader "Use OAuth if…" [ref=f2e229]:
+                            - text: Use
+                            - strong [ref=f2e230]: OAuth
+                            - text: if…
+                      - rowgroup [ref=f2e231]:
+                        - row "Client Support Your tool (e.g., Cursor, Antigravity, or the Gemini CLI) accepts an API key in a config file or environment variable. Your tool (e.g., web-based tools) requires a “Sign In” flow and doesn’t provide a way to manually input a key." [ref=f2e232]:
+                          - cell "Client Support" [ref=f2e233]:
+                            - strong [ref=f2e234]: Client Support
+                          - cell "Your tool (e.g., Cursor, Antigravity, or the Gemini CLI) accepts an API key in a config file or environment variable." [ref=f2e235]
+                          - cell "Your tool (e.g., web-based tools) requires a “Sign In” flow and doesn’t provide a way to manually input a key." [ref=f2e236]
+                        - row "Storage Policy You are on a private machine where saving a secret key in a local .json or .env file is standard practice. You are in a “Zero-Trust” or ephemeral environment where saving persistent secrets to the hard drive is blocked or risky." [ref=f2e237]:
+                          - cell "Storage Policy" [ref=f2e238]:
+                            - strong [ref=f2e239]: Storage Policy
+                          - cell "You are on a private machine where saving a secret key in a local .json or .env file is standard practice." [ref=f2e240]:
+                            - text: You are on a private machine where saving a secret key in a local
+                            - code [ref=f2e241]: .json
+                            - text: or
+                            - code [ref=f2e242]: .env
+                            - text: file is standard practice.
+                          - cell "You are in a “Zero-Trust” or ephemeral environment where saving persistent secrets to the hard drive is blocked or risky." [ref=f2e243]
+                        - row "Revocation You are comfortable manually deleting a key from the Stitch Settings page and then finding/removing it from your local files. You want the ability to “Log Out” and instantly invalidate the tool’s access via the Stitch Settings page without hunting for local files." [ref=f2e244]:
+                          - cell "Revocation" [ref=f2e245]:
+                            - strong [ref=f2e246]: Revocation
+                          - cell "You are comfortable manually deleting a key from the Stitch Settings page and then finding/removing it from your local files." [ref=f2e247]:
+                            - text: You are comfortable manually deleting a key from the
+                            - link "Stitch Settings page" [ref=f2e248] [cursor=pointer]:
+                              - /url: /settings
+                            - text: and then finding/removing it from your local files.
+                          - cell "You want the ability to “Log Out” and instantly invalidate the tool’s access via the Stitch Settings page without hunting for local files." [ref=f2e249]:
+                            - text: You want the ability to “Log Out” and instantly invalidate the tool’s access via the
+                            - link "Stitch Settings page" [ref=f2e250] [cursor=pointer]:
+                              - /url: /settings
+                            - text: without hunting for local files.
+                        - row "Session Logic You want a connection that stays active indefinitely until you manually change it. You prefer a session-based connection that can be set to expire or require a re-approval after a period of inactivity." [ref=f2e251]:
+                          - cell "Session Logic" [ref=f2e252]:
+                            - strong [ref=f2e253]: Session Logic
+                          - cell "You want a connection that stays active indefinitely until you manually change it." [ref=f2e254]
+                          - cell "You prefer a session-based connection that can be set to expire or require a re-approval after a period of inactivity." [ref=f2e255]
+                    - generic [ref=f2e256]:
+                      - heading "API Key Setup" [level=2] [ref=f2e257]
+                      - link "Section titled “API Key Setup”" [ref=f2e258] [cursor=pointer]:
+                        - /url: "#api-key-setup"
+                        - img [ref=f2e260]
+                        - generic [ref=f2e262]: Section titled “API Key Setup”
+                    - list [ref=f2e263]:
+                      - listitem [ref=f2e264]:
+                        - text: Go to your
+                        - link "Stitch Settings page" [ref=f2e265] [cursor=pointer]:
+                          - /url: /settings
+                        - text: .
+                      - listitem [ref=f2e266]: Scroll to the API Keys section
+                      - listitem [ref=f2e267]: Click on “Create API Key” to generate a new API key.
+                      - listitem [ref=f2e268]: Copy the API key and save it in a secure location.
+                    - link [ref=f2e269] [cursor=pointer]:
+                      - /url: /settings
+                    - generic [ref=f2e277]:
+                      - heading "Storing API Keys" [level=2] [ref=f2e278]
+                      - link "Section titled “Storing API Keys”" [ref=f2e279] [cursor=pointer]:
+                        - /url: "#storing-api-keys"
+                        - img [ref=f2e281]
+                        - generic [ref=f2e283]: Section titled “Storing API Keys”
+                    - paragraph [ref=f2e284]: Never store your API key in a place where it can be exposed to the public. Never commit your API key to a public repository. Don’t include your API key in client-side code that can be viewed by others.
+                    - generic [ref=f2e285]:
+                      - heading "MCP Client Setup" [level=2] [ref=f2e286]
+                      - link "Section titled “MCP Client Setup”" [ref=f2e287] [cursor=pointer]:
+                        - /url: "#mcp-client-setup"
+                        - img [ref=f2e289]
+                        - generic [ref=f2e291]: Section titled “MCP Client Setup”
+                    - generic [ref=f2e292]:
+                      - heading "Gemini CLI" [level=3] [ref=f2e293]
+                      - link "Section titled “Gemini CLI”" [ref=f2e294] [cursor=pointer]:
+                        - /url: "#gemini-cli"
+                        - img [ref=f2e296]
+                        - generic [ref=f2e298]: Section titled “Gemini CLI”
+                    - paragraph [ref=f2e299]:
+                      - text: Install the
+                      - link "Stitch extension" [ref=f2e300] [cursor=pointer]:
+                        - /url: https://github.com/gemini-cli-extensions/stitch
+                      - text: for the Gemini CLI.
+                    - figure "Terminal window" [ref=f2e302]:
+                      - generic [ref=f2e305]: Terminal window
+                      - code [ref=f2e307]:
+                        - generic [ref=f2e309]: gemini extensions install https://github.com/gemini-cli-extensions/stitch
+                      - button "Copy to clipboard" [ref=f2e311] [cursor=pointer]
+                    - generic [ref=f2e312]:
+                      - heading "Cursor" [level=3] [ref=f2e313]
+                      - link "Section titled “Cursor”" [ref=f2e314] [cursor=pointer]:
+                        - /url: "#cursor"
+                        - img [ref=f2e316]
+                        - generic [ref=f2e318]: Section titled “Cursor”
+                    - paragraph [ref=f2e319]:
+                      - text: Create a
+                      - code [ref=f2e320]: .cursor/mcp.json
+                      - text: "file with the following entry:"
+                    - figure [ref=f2e322]:
+                      - code [ref=f2e324]:
+                        - generic [ref=f2e326]: "{"
+                        - generic [ref=f2e328]: "\"mcpServers\": {"
+                        - generic [ref=f2e330]: "\"stitch\": {"
+                        - generic [ref=f2e332]: "\"url\": \"https://stitch.googleapis.com/mcp\","
+                        - generic [ref=f2e334]: "\"headers\": {"
+                        - generic [ref=f2e336]: "\"X-Goog-Api-Key\": \"YOUR-API-KEY\""
+                        - generic [ref=f2e338]: "}"
+                        - generic [ref=f2e341]: "}"
+                        - generic [ref=f2e344]: "}"
+                        - generic [ref=f2e347]: "}"
+                      - button "Copy to clipboard" [ref=f2e349] [cursor=pointer]
+                    - generic [ref=f2e350]:
+                      - heading "Antigravity" [level=3] [ref=f2e351]
+                      - link "Section titled “Antigravity”" [ref=f2e352] [cursor=pointer]:
+                        - /url: "#antigravity"
+                        - img [ref=f2e354]
+                        - generic [ref=f2e356]: Section titled “Antigravity”
+                    - paragraph [ref=f2e357]:
+                      - text: In the Agent Panel, click the three dots in the top right and select
+                      - strong [ref=f2e358]: MCP Servers
+                      - text: . Click,
+                      - strong [ref=f2e359]: Manage MCP Servers
+                      - text: ". Select “View raw config” and add the following entry:"
+                    - figure [ref=f2e361]:
+                      - code [ref=f2e363]:
+                        - generic [ref=f2e365]: "{"
+                        - generic [ref=f2e367]: "\"mcpServers\": {"
+                        - generic [ref=f2e369]: "\"stitch\": {"
+                        - generic [ref=f2e371]: "\"serverUrl\": \"https://stitch.googleapis.com/mcp\","
+                        - generic [ref=f2e373]: "\"headers\": {"
+                        - generic [ref=f2e375]: "\"X-Goog-Api-Key\": \"YOUR-API-KEY\""
+                        - generic [ref=f2e377]: "}"
+                        - generic [ref=f2e380]: "}"
+                        - generic [ref=f2e383]: "}"
+                        - generic [ref=f2e386]: "}"
+                      - button "Copy to clipboard" [ref=f2e388] [cursor=pointer]
+                    - generic [ref=f2e389]:
+                      - heading "VSCode" [level=3] [ref=f2e390]
+                      - link "Section titled “VSCode”" [ref=f2e391] [cursor=pointer]:
+                        - /url: "#vscode"
+                        - img [ref=f2e393]
+                        - generic [ref=f2e395]: Section titled “VSCode”
+                    - paragraph [ref=f2e396]:
+                      - text: "Open the Command Palette (Cmd+Shift+P) and type “MCP: Add Server”. Select “Add MCP Server”. Select"
+                      - strong [ref=f2e397]: HTTP
+                      - text: to add a remote MCP server. Enter the Stitch MCP URL,
+                      - code [ref=f2e398]: https://stitch.googleapis.com/mcp
+                      - text: . Set the name to “stitch” and confirm.
+                    - paragraph [ref=f2e399]:
+                      - text: Then modify the
+                      - code [ref=f2e400]: mcp.json
+                      - text: "file to add the API key:"
+                    - figure [ref=f2e402]:
+                      - code [ref=f2e404]:
+                        - generic [ref=f2e406]: "{"
+                        - generic [ref=f2e408]: "\"servers\": {"
+                        - generic [ref=f2e410]: "\"stitch\": {"
+                        - generic [ref=f2e412]: "\"url\": \"https://stitch.googleapis.com/mcp\","
+                        - generic [ref=f2e414]: "\"type\": \"http\","
+                        - generic [ref=f2e416]: "\"headers\": {"
+                        - generic [ref=f2e418]: "\"Accept\": \"application/json\","
+                        - generic [ref=f2e420]: "\"X-Goog-Api-Key\": \"YOUR-API-KEY\""
+                        - generic [ref=f2e422]: "}"
+                        - generic [ref=f2e425]: "}"
+                        - generic [ref=f2e428]: "}"
+                        - generic [ref=f2e431]: "}"
+                      - button "Copy to clipboard" [ref=f2e433] [cursor=pointer]
+                    - generic [ref=f2e434]:
+                      - heading "Claude Code" [level=3] [ref=f2e435]
+                      - link "Section titled “Claude Code”" [ref=f2e436] [cursor=pointer]:
+                        - /url: "#claude-code"
+                        - img [ref=f2e438]
+                        - generic [ref=f2e440]: Section titled “Claude Code”
+                    - paragraph [ref=f2e441]:
+                      - text: Use the
+                      - code [ref=f2e442]: claude mcp
+                      - text: "command to authenticate and add the following entry:"
+                    - figure "Terminal window" [ref=f2e444]:
+                      - generic [ref=f2e447]: Terminal window
+                      - code [ref=f2e449]:
+                        - generic [ref=f2e451]: "claude mcp add stitch --transport http https://stitch.googleapis.com/mcp --header \"X-Goog-Api-Key: api-key\" -s user"
+                      - button "Copy to clipboard" [ref=f2e453] [cursor=pointer]
+                    - generic [ref=f2e454]:
+                      - heading "OAuth Setup" [level=2] [ref=f2e455]
+                      - link "Section titled “OAuth Setup”" [ref=f2e456] [cursor=pointer]:
+                        - /url: "#oauth-setup"
+                        - img [ref=f2e458]
+                        - generic [ref=f2e460]: Section titled “OAuth Setup”
+                    - paragraph [ref=f2e461]: "We need to generate two secrets to allow your MCP Client to talk to Stitch:"
+                    - list [ref=f2e462]:
+                      - listitem [ref=f2e463]:
+                        - strong [ref=f2e464]: "Project ID:"
+                        - text: The container for your work.
+                      - listitem [ref=f2e465]:
+                        - strong [ref=f2e466]: "Access Token:"
+                        - text: The short lived key for to verify authentication for the project.
+                    - generic [ref=f2e467]:
+                      - heading "1. Install the Google Cloud SDK" [level=3] [ref=f2e468]
+                      - link "Section titled “1. Install the Google Cloud SDK”" [ref=f2e469] [cursor=pointer]:
+                        - /url: "#1-install-the-google-cloud-sdk"
+                        - img [ref=f2e471]
+                        - generic [ref=f2e473]: Section titled “1. Install the Google Cloud SDK”
+                    - paragraph [ref=f2e474]:
+                      - text: Stitch relies on the
+                      - code [ref=f2e475]: gcloud
+                      - text: CLI for secure authentication. If you don’t have it, you can install it globally through this quickstart, or you can install it as a standalone like the instructions below.
+                    - generic [ref=f2e476]:
+                      - heading "Standalone" [level=4] [ref=f2e477]
+                      - link "Section titled “Standalone”" [ref=f2e478] [cursor=pointer]:
+                        - /url: "#standalone"
+                        - img [ref=f2e480]
+                        - generic [ref=f2e482]: Section titled “Standalone”
+                    - figure "Terminal window" [ref=f2e484]:
+                      - generic [ref=f2e487]: Terminal window
+                      - code [ref=f2e489]:
+                        - generic [ref=f2e491]: "# Download and install (simplified for standard environments)"
+                        - generic [ref=f2e493]: curl https://sdk.cloud.google.com | bash
+                        - generic [ref=f2e495]: exec -l $SHELL
+                        - generic [ref=f2e499]: "# Set local configuration to avoid prompts"
+                        - generic [ref=f2e501]: export CLOUDSDK_CORE_DISABLE_PROMPTS=1
+                      - button "Copy to clipboard" [ref=f2e503] [cursor=pointer]
+                    - generic [ref=f2e504]:
+                      - heading "Homebrew" [level=4] [ref=f2e505]
+                      - link "Section titled “Homebrew”" [ref=f2e506] [cursor=pointer]:
+                        - /url: "#homebrew"
+                        - img [ref=f2e508]
+                        - generic [ref=f2e510]: Section titled “Homebrew”
+                    - figure "Terminal window" [ref=f2e512]:
+                      - generic [ref=f2e515]: Terminal window
+                      - code [ref=f2e517]:
+                        - generic [ref=f2e519]: brew install --cask google-cloud-sdk
+                      - button "Copy to clipboard" [ref=f2e521] [cursor=pointer]
+                    - generic [ref=f2e522]:
+                      - heading "2. Double-Layer Authentication" [level=3] [ref=f2e523]
+                      - link "Section titled “2. Double-Layer Authentication”" [ref=f2e524] [cursor=pointer]:
+                        - /url: "#2-double-layer-authentication"
+                        - img [ref=f2e526]
+                        - generic [ref=f2e528]: Section titled “2. Double-Layer Authentication”
+                    - paragraph [ref=f2e529]:
+                      - text: You need to log in twice. Once as
+                      - strong [ref=f2e530]: You
+                      - text: (the user), and once as the
+                      - strong [ref=f2e531]: Application
+                      - text: (your local code/MCP client).
+                    - figure "Terminal window" [ref=f2e533]:
+                      - generic [ref=f2e536]: Terminal window
+                      - code [ref=f2e538]:
+                        - generic [ref=f2e540]: "# 1. User Login (Opens Browser)"
+                        - generic [ref=f2e542]: gcloud auth login
+                        - generic [ref=f2e546]: "# 2. Application Default Credentials (ADC) Login"
+                        - generic [ref=f2e548]: "# This allows the MCP server to \"impersonate\" you securely."
+                        - generic [ref=f2e550]: gcloud auth application-default login
+                      - button "Copy to clipboard" [ref=f2e552] [cursor=pointer]
+                    - generic [ref=f2e553]:
+                      - heading "3. Configure the Project & Permissions" [level=3] [ref=f2e554]
+                      - link "Section titled “3. Configure the Project & Permissions”" [ref=f2e555] [cursor=pointer]:
+                        - /url: "#3-configure-the-project--permissions"
+                        - img [ref=f2e557]
+                        - generic [ref=f2e559]: Section titled “3. Configure the Project & Permissions”
+                    - paragraph [ref=f2e560]: Select your working project and enable the Stitch API. You must also grant your user permission to consume services.
+                    - figure "Terminal window" [ref=f2e562]:
+                      - generic [ref=f2e565]: Terminal window
+                      - code [ref=f2e567]:
+                        - generic [ref=f2e569]: "# Replace [YOUR_PROJECT_ID] with your actual Google Cloud Project ID"
+                        - generic [ref=f2e571]: PROJECT_ID="[YOUR_PROJECT_ID]"
+                        - generic [ref=f2e575]: gcloud config set project "$PROJECT_ID"
+                        - generic [ref=f2e579]: "# Enable the Stitch API"
+                        - generic [ref=f2e581]: gcloud beta services mcp enable stitch.googleapis.com --project="$PROJECT_ID"
+                        - generic [ref=f2e585]: "# Grant Service Usage Consumer role"
+                        - generic [ref=f2e587]: USER_EMAIL=$(gcloud config get-value account)
+                        - generic [ref=f2e589]: gcloud projects add-iam-policy-binding "$PROJECT_ID" \
+                        - generic [ref=f2e591]: "--member=\"user:$USER_EMAIL\" \\"
+                        - generic [ref=f2e593]: "--role=\"roles/serviceusage.serviceUsageConsumer\" \\"
+                        - generic [ref=f2e595]: "--condition=None"
+                      - button "Copy to clipboard" [ref=f2e597] [cursor=pointer]
+                    - generic [ref=f2e598]:
+                      - heading "4. Generate the Secrets (.env)" [level=3] [ref=f2e599]
+                      - link "Section titled “4. Generate the Secrets (.env)”" [ref=f2e600] [cursor=pointer]:
+                        - /url: "#4-generate-the-secrets-env"
+                        - img [ref=f2e602]
+                        - generic [ref=f2e604]: Section titled “4. Generate the Secrets (.env)”
+                    - paragraph [ref=f2e605]:
+                      - text: Finally, we generate the Access Token and save it to a
+                      - code [ref=f2e606]: .env
+                      - text: file.
+                    - blockquote [ref=f2e607]:
+                      - paragraph [ref=f2e608]:
+                        - text: This overwrites any existing
+                        - code [ref=f2e609]: .env
+                        - text: file
+                    - figure "Terminal window" [ref=f2e611]:
+                      - generic [ref=f2e614]: Terminal window
+                      - code [ref=f2e616]:
+                        - generic [ref=f2e618]: "# Print the token"
+                        - generic [ref=f2e620]: TOKEN=$(gcloud auth application-default print-access-token)
+                        - generic [ref=f2e624]: "# Note: This overwrites any existing .env file"
+                        - generic [ref=f2e626]: echo "GOOGLE_CLOUD_PROJECT=$PROJECT_ID" > .env
+                        - generic [ref=f2e628]: echo "STITCH_ACCESS_TOKEN=$TOKEN" >> .env
+                        - generic [ref=f2e632]: echo "Secrets generated in .env"
+                      - button "Copy to clipboard" [ref=f2e634] [cursor=pointer]
+                    - generic [ref=f2e635]:
+                      - heading "5. Keeping it Fresh" [level=3] [ref=f2e636]
+                      - link "Section titled “5. Keeping it Fresh”" [ref=f2e637] [cursor=pointer]:
+                        - /url: "#5-keeping-it-fresh"
+                        - img [ref=f2e639]
+                        - generic [ref=f2e641]: Section titled “5. Keeping it Fresh”
+                    - paragraph [ref=f2e642]:
+                      - strong [ref=f2e643]: "Note:"
+                      - text: "Access Tokens are temporary (usually lasting 1 hour). When your MCP client stops responding or says “Unauthenticated,” you need to:"
+                    - list [ref=f2e644]:
+                      - listitem [ref=f2e645]:
+                        - text: Re-run the commands in
+                        - strong [ref=f2e646]: Step 4
+                        - text: to update your
+                        - code [ref=f2e647]: .env
+                        - text: file
+                      - listitem [ref=f2e648]:
+                        - text: Copy the new
+                        - code [ref=f2e649]: STITCH_ACCESS_TOKEN
+                        - text: value from
+                        - code [ref=f2e650]: .env
+                        - text: into your MCP client config file
+                    - paragraph [ref=f2e651]:
+                      - text: Most MCP clients don’t automatically read from
+                      - code [ref=f2e652]: .env
+                      - text: files, so you’ll need to manually update the token in your config file each time it expires.
+                    - generic [ref=f2e653]:
+                      - heading "Setting up your MCP Client" [level=2] [ref=f2e654]
+                      - link "Section titled “Setting up your MCP Client”" [ref=f2e655] [cursor=pointer]:
+                        - /url: "#setting-up-your-mcp-client"
+                        - img [ref=f2e657]
+                        - generic [ref=f2e659]: Section titled “Setting up your MCP Client”
+                    - paragraph [ref=f2e660]:
+                      - text: Copy the values from your
+                      - code [ref=f2e661]: .env
+                      - text: file into your MCP client configuration. Replace the placeholders below with the actual values from your
+                      - code [ref=f2e662]: .env
+                      - text: "file:"
+                    - list [ref=f2e663]:
+                      - listitem [ref=f2e664]:
+                        - code [ref=f2e665]: <YOUR_PROJECT_ID>
+                        - text: → Value of
+                        - code [ref=f2e666]: GOOGLE_CLOUD_PROJECT
+                        - text: from
+                        - code [ref=f2e667]: .env
+                      - listitem [ref=f2e668]:
+                        - code [ref=f2e669]: <YOUR_ACCESS_TOKEN>
+                        - text: → Value of
+                        - code [ref=f2e670]: STITCH_ACCESS_TOKEN
+                        - text: from
+                        - code [ref=f2e671]: .env
+                    - blockquote [ref=f2e672]:
+                      - paragraph [ref=f2e673]:
+                        - text: "[!IMPORTANT] You will need to manually update the"
+                        - code [ref=f2e674]: Authorization
+                        - text: header in your config file every hour when the access token expires. See
+                        - strong [ref=f2e675]: Step 5
+                        - text: above for the refresh workflow.
+                    - generic [ref=f2e676]:
+                      - heading "Cursor" [level=3] [ref=f2e677]
+                      - link "Section titled “Cursor”" [ref=f2e678] [cursor=pointer]:
+                        - /url: "#cursor-1"
+                        - img [ref=f2e680]
+                        - generic [ref=f2e682]: Section titled “Cursor”
+                    - paragraph [ref=f2e683]:
+                      - text: Create a
+                      - code [ref=f2e684]: .cursor/mcp.json
+                      - text: "file with the following entry:"
+                    - figure [ref=f2e686]:
+                      - code [ref=f2e688]:
+                        - generic [ref=f2e690]: "{"
+                        - generic [ref=f2e692]: "\"mcpServers\": {"
+                        - generic [ref=f2e694]: "\"stitch\": {"
+                        - generic [ref=f2e696]: "\"url\": \"https://stitch.googleapis.com/mcp\","
+                        - generic [ref=f2e698]: "\"headers\": {"
+                        - generic [ref=f2e700]: "\"Authorization\": \"Bearer <YOUR_ACCESS_TOKEN>\","
+                        - generic [ref=f2e702]: "\"X-Goog-User-Project\": \"<YOUR_PROJECT_ID>\""
+                        - generic [ref=f2e704]: "}"
+                        - generic [ref=f2e707]: "}"
+                        - generic [ref=f2e710]: "}"
+                        - generic [ref=f2e713]: "}"
+                      - button "Copy to clipboard" [ref=f2e715] [cursor=pointer]
+                    - generic [ref=f2e716]:
+                      - heading "Antigravity" [level=3] [ref=f2e717]
+                      - link "Section titled “Antigravity”" [ref=f2e718] [cursor=pointer]:
+                        - /url: "#antigravity-1"
+                        - img [ref=f2e720]
+                        - generic [ref=f2e722]: Section titled “Antigravity”
+                    - paragraph [ref=f2e723]:
+                      - text: In the Agent Panel, click the three dots in the top right and select
+                      - strong [ref=f2e724]: MCP Servers
+                      - text: . Click
+                      - strong [ref=f2e725]: Manage MCP Servers
+                      - text: ". Select “View raw config” and add the following entry:"
+                    - figure [ref=f2e727]:
+                      - code [ref=f2e729]:
+                        - generic [ref=f2e731]: "{"
+                        - generic [ref=f2e733]: "\"mcpServers\": {"
+                        - generic [ref=f2e735]: "\"stitch\": {"
+                        - generic [ref=f2e737]: "\"serverUrl\": \"https://stitch.googleapis.com/mcp\","
+                        - generic [ref=f2e739]: "\"headers\": {"
+                        - generic [ref=f2e741]: "\"Authorization\": \"Bearer <YOUR_ACCESS_TOKEN>\","
+                        - generic [ref=f2e743]: "\"X-Goog-User-Project\": \"<YOUR_PROJECT_ID>\""
+                        - generic [ref=f2e745]: "}"
+                        - generic [ref=f2e748]: "}"
+                        - generic [ref=f2e751]: "}"
+                        - generic [ref=f2e754]: "}"
+                      - button "Copy to clipboard" [ref=f2e756] [cursor=pointer]
+                    - generic [ref=f2e757]:
+                      - heading "VSCode" [level=3] [ref=f2e758]
+                      - link "Section titled “VSCode”" [ref=f2e759] [cursor=pointer]:
+                        - /url: "#vscode-1"
+                        - img [ref=f2e761]
+                        - generic [ref=f2e763]: Section titled “VSCode”
+                    - paragraph [ref=f2e764]:
+                      - text: "Open the Command Palette (Cmd+Shift+P) and type “MCP: Add Server”. Select “Add MCP Server”. Select"
+                      - strong [ref=f2e765]: HTTP
+                      - text: to add a remote MCP server. Enter the Stitch MCP URL,
+                      - code [ref=f2e766]: https://stitch.googleapis.com/mcp
+                      - text: . Set the name to “stitch” and confirm.
+                    - paragraph [ref=f2e767]:
+                      - text: Then modify the
+                      - code [ref=f2e768]: mcp.json
+                      - text: "file to add the headers:"
+                    - figure [ref=f2e770]:
+                      - code [ref=f2e772]:
+                        - generic [ref=f2e774]: "{"
+                        - generic [ref=f2e776]: "\"servers\": {"
+                        - generic [ref=f2e778]: "\"stitch\": {"
+                        - generic [ref=f2e780]: "\"url\": \"https://stitch.googleapis.com/mcp\","
+                        - generic [ref=f2e782]: "\"type\": \"http\","
+                        - generic [ref=f2e784]: "\"headers\": {"
+                        - generic [ref=f2e786]: "\"Accept\": \"application/json\","
+                        - generic [ref=f2e788]: "\"Authorization\": \"Bearer <YOUR_ACCESS_TOKEN>\","
+                        - generic [ref=f2e790]: "\"X-Goog-User-Project\": \"<YOUR_PROJECT_ID>\""
+                        - generic [ref=f2e792]: "}"
+                        - generic [ref=f2e795]: "}"
+                        - generic [ref=f2e798]: "}"
+                        - generic [ref=f2e801]: "}"
+                      - button "Copy to clipboard" [ref=f2e803] [cursor=pointer]
+                    - generic [ref=f2e804]:
+                      - heading "Claude Code" [level=3] [ref=f2e805]
+                      - link "Section titled “Claude Code”" [ref=f2e806] [cursor=pointer]:
+                        - /url: "#claude-code-1"
+                        - img [ref=f2e808]
+                        - generic [ref=f2e810]: Section titled “Claude Code”
+                    - paragraph [ref=f2e811]:
+                      - text: Use the
+                      - code [ref=f2e812]: claude mcp
+                      - text: "command to add the server:"
+                    - figure "Terminal window" [ref=f2e814]:
+                      - generic [ref=f2e817]: Terminal window
+                      - code [ref=f2e819]:
+                        - generic [ref=f2e821]: claude mcp add stitch \
+                        - generic [ref=f2e823]: "--transport http https://stitch.googleapis.com/mcp \\"
+                        - generic [ref=f2e825]: "--header \"Authorization: Bearer <YOUR_ACCESS_TOKEN>\" \\"
+                        - generic [ref=f2e827]: "--header \"X-Goog-User-Project: <YOUR_PROJECT_ID>\" \\"
+                        - generic [ref=f2e829]: "-s user"
+                        - generic [ref=f2e833]: "# -s user: saves to $HOME/.claude.json"
+                        - generic [ref=f2e835]: "# -s project: saves to ./.mcp.json"
+                      - button "Copy to clipboard" [ref=f2e837] [cursor=pointer]
+                    - generic [ref=f2e838]:
+                      - heading "Gemini CLI" [level=3] [ref=f2e839]
+                      - link "Section titled “Gemini CLI”" [ref=f2e840] [cursor=pointer]:
+                        - /url: "#gemini-cli-1"
+                        - img [ref=f2e842]
+                        - generic [ref=f2e844]: Section titled “Gemini CLI”
+                    - paragraph [ref=f2e845]:
+                      - text: Install the
+                      - link "Stitch extension" [ref=f2e846] [cursor=pointer]:
+                        - /url: https://github.com/gemini-cli-extensions/stitch
+                      - text: "for the Gemini CLI:"
+                    - figure "Terminal window" [ref=f2e848]:
+                      - generic [ref=f2e851]: Terminal window
+                      - code [ref=f2e853]:
+                        - generic [ref=f2e855]: gemini extensions install https://github.com/gemini-cli-extensions/stitch
+                      - button "Copy to clipboard" [ref=f2e857] [cursor=pointer]
+                    - generic [ref=f2e858]:
+                      - heading "Available Tools" [level=2] [ref=f2e859]
+                      - link "Section titled “Available Tools”" [ref=f2e860] [cursor=pointer]:
+                        - /url: "#available-tools"
+                        - img [ref=f2e862]
+                        - generic [ref=f2e864]: Section titled “Available Tools”
+                    - paragraph [ref=f2e865]:
+                      - text: Once authenticated, your AI assistant will have access to the following tools to manage your Stitch workflow. See the
+                      - link "Reference" [ref=f2e866] [cursor=pointer]:
+                        - /url: /docs/mcp/reference
+                      - text: for full schemas and details.
+                    - generic [ref=f2e867]:
+                      - heading "Project Management" [level=3] [ref=f2e868]
+                      - link "Section titled “Project Management”" [ref=f2e869] [cursor=pointer]:
+                        - /url: "#project-management"
+                        - img [ref=f2e871]
+                        - generic [ref=f2e873]: Section titled “Project Management”
+                    - list [ref=f2e874]:
+                      - listitem [ref=f2e875]:
+                        - code [ref=f2e876]: create_project
+                        - text: ": Creates a new container for your UI work."
+                        - list [ref=f2e877]:
+                          - listitem [ref=f2e878]:
+                            - strong [ref=f2e879]: title
+                            - emphasis [ref=f2e880]: (string)
+                            - text: ": The display name of the project."
+                      - listitem [ref=f2e881]:
+                        - code [ref=f2e882]: get_project
+                        - text: ": Retrieves specific details for a single project."
+                        - list [ref=f2e883]:
+                          - listitem [ref=f2e884]:
+                            - strong [ref=f2e885]: name
+                            - emphasis [ref=f2e886]: (string)
+                            - text: ": The resource name of the project."
+                      - listitem [ref=f2e887]:
+                        - code [ref=f2e888]: list_projects
+                        - text: ": Retrieves a list of all your active designs."
+                        - list [ref=f2e889]:
+                          - listitem [ref=f2e890]:
+                            - strong [ref=f2e891]: filter
+                            - emphasis [ref=f2e892]: (string)
+                            - text: ": Filters by owned or shared projects."
+                    - generic [ref=f2e893]:
+                      - heading "Screen Management" [level=3] [ref=f2e894]
+                      - link "Section titled “Screen Management”" [ref=f2e895] [cursor=pointer]:
+                        - /url: "#screen-management"
+                        - img [ref=f2e897]
+                        - generic [ref=f2e899]: Section titled “Screen Management”
+                    - list [ref=f2e900]:
+                      - listitem [ref=f2e901]:
+                        - code [ref=f2e902]: list_screens
+                        - text: ": Fetches all screens within a specific project."
+                        - list [ref=f2e903]:
+                          - listitem [ref=f2e904]:
+                            - strong [ref=f2e905]: projectId
+                            - emphasis [ref=f2e906]: (string)
+                            - text: ": The ID of the project to inspect."
+                      - listitem [ref=f2e907]:
+                        - code [ref=f2e908]: get_screen
+                        - text: ": Retrieves specific details for a single screen."
+                        - list [ref=f2e909]:
+                          - listitem [ref=f2e910]:
+                            - strong [ref=f2e911]: name
+                            - emphasis [ref=f2e912]: (string)
+                            - text: ": The resource name of the screen."
+                    - generic [ref=f2e913]:
+                      - heading "AI Generation" [level=3] [ref=f2e914]
+                      - link "Section titled “AI Generation”" [ref=f2e915] [cursor=pointer]:
+                        - /url: "#ai-generation"
+                        - img [ref=f2e917]
+                        - generic [ref=f2e919]: Section titled “AI Generation”
+                    - list [ref=f2e920]:
+                      - listitem [ref=f2e921]:
+                        - code [ref=f2e922]: generate_screen_from_text
+                        - text: ": Creates a new design from a text prompt."
+                        - list [ref=f2e923]:
+                          - listitem [ref=f2e924]:
+                            - strong [ref=f2e925]: projectId
+                            - emphasis [ref=f2e926]: (string)
+                            - text: ": The ID of the project."
+                          - listitem [ref=f2e927]:
+                            - strong [ref=f2e928]: prompt
+                            - emphasis [ref=f2e929]: (string)
+                            - text: ": The text prompt to generate a design from."
+                          - listitem [ref=f2e930]:
+                            - strong [ref=f2e931]: modelId
+                            - emphasis [ref=f2e932]: (string)
+                            - text: ": The model to use ("
+                            - code [ref=f2e933]: GEMINI_3_FLASH
+                            - text: or
+                            - code [ref=f2e934]: GEMINI_3_1_PRO
+                            - text: ).
+                      - listitem [ref=f2e935]:
+                        - code [ref=f2e936]: edit_screens
+                        - text: ": Edits existing screens using a text prompt."
+                        - list [ref=f2e937]:
+                          - listitem [ref=f2e938]:
+                            - strong [ref=f2e939]: projectId
+                            - emphasis [ref=f2e940]: (string)
+                            - text: ": The ID of the project."
+                          - listitem [ref=f2e941]:
+                            - strong [ref=f2e942]: selectedScreenIds
+                            - emphasis [ref=f2e943]: (string[])
+                            - text: ": The screen IDs to edit."
+                          - listitem [ref=f2e944]:
+                            - strong [ref=f2e945]: prompt
+                            - emphasis [ref=f2e946]: (string)
+                            - text: ": The edit instruction."
+                      - listitem [ref=f2e947]:
+                        - code [ref=f2e948]: generate_variants
+                        - text: ": Generates design variants of existing screens."
+                        - list [ref=f2e949]:
+                          - listitem [ref=f2e950]:
+                            - strong [ref=f2e951]: projectId
+                            - emphasis [ref=f2e952]: (string)
+                            - text: ": The ID of the project."
+                          - listitem [ref=f2e953]:
+                            - strong [ref=f2e954]: selectedScreenIds
+                            - emphasis [ref=f2e955]: (string[])
+                            - text: ": The screen IDs to generate variants for."
+                          - listitem [ref=f2e956]:
+                            - strong [ref=f2e957]: prompt
+                            - emphasis [ref=f2e958]: (string)
+                            - text: ": Text guiding variant generation."
+                          - listitem [ref=f2e959]:
+                            - strong [ref=f2e960]: variantOptions
+                            - emphasis [ref=f2e961]: (object)
+                            - text: ": Variant configuration (count, creative range, aspects)."
+                    - generic [ref=f2e962]:
+                      - heading "Design Systems" [level=3] [ref=f2e963]
+                      - link "Section titled “Design Systems”" [ref=f2e964] [cursor=pointer]:
+                        - /url: "#design-systems"
+                        - img [ref=f2e966]
+                        - generic [ref=f2e968]: Section titled “Design Systems”
+                    - list [ref=f2e969]:
+                      - listitem [ref=f2e970]:
+                        - code [ref=f2e971]: create_design_system
+                        - text: ": Creates a new design system with foundational design tokens."
+                        - list [ref=f2e972]:
+                          - listitem [ref=f2e973]:
+                            - strong [ref=f2e974]: designSystem
+                            - emphasis [ref=f2e975]: (object)
+                            - text: ": The design system configuration (display name, theme)."
+                          - listitem [ref=f2e976]:
+                            - strong [ref=f2e977]: projectId
+                            - emphasis [ref=f2e978]: (string)
+                            - text: ": Optional. The project to associate the design system with."
+                      - listitem [ref=f2e979]:
+                        - code [ref=f2e980]: update_design_system
+                        - text: ": Updates an existing design system."
+                        - list [ref=f2e981]:
+                          - listitem [ref=f2e982]:
+                            - strong [ref=f2e983]: name
+                            - emphasis [ref=f2e984]: (string)
+                            - text: ": The resource name of the design system asset."
+                          - listitem [ref=f2e985]:
+                            - strong [ref=f2e986]: projectId
+                            - emphasis [ref=f2e987]: (string)
+                            - text: ": The project ID."
+                          - listitem [ref=f2e988]:
+                            - strong [ref=f2e989]: designSystem
+                            - emphasis [ref=f2e990]: (object)
+                            - text: ": The updated design system content."
+                      - listitem [ref=f2e991]:
+                        - code [ref=f2e992]: list_design_systems
+                        - text: ": Lists all design systems for a project."
+                        - list [ref=f2e993]:
+                          - listitem [ref=f2e994]:
+                            - strong [ref=f2e995]: projectId
+                            - emphasis [ref=f2e996]: (string)
+                            - text: ": Optional. The project ID to list design systems for."
+                      - listitem [ref=f2e997]:
+                        - code [ref=f2e998]: apply_design_system
+                        - text: ": Applies a design system to one or more screens."
+                        - list [ref=f2e999]:
+                          - listitem [ref=f2e1000]:
+                            - strong [ref=f2e1001]: projectId
+                            - emphasis [ref=f2e1002]: (string)
+                            - text: ": The project ID."
+                          - listitem [ref=f2e1003]:
+                            - strong [ref=f2e1004]: selectedScreenInstances
+                            - emphasis [ref=f2e1005]: (array)
+                            - text: ": Screen instances to update (from"
+                            - code [ref=f2e1006]: get_project
+                            - text: ).
+                          - listitem [ref=f2e1007]:
+                            - strong [ref=f2e1008]: assetId
+                            - emphasis [ref=f2e1009]: (string)
+                            - text: ": The design system asset ID (from"
+                            - code [ref=f2e1010]: list_design_systems
+                            - text: ).
+                    - generic [ref=f2e1011]:
+                      - heading "Terms of Service" [level=2] [ref=f2e1012]
+                      - link "Section titled “Terms of Service”" [ref=f2e1013] [cursor=pointer]:
+                        - /url: "#terms-of-service"
+                        - img [ref=f2e1015]
+                        - generic [ref=f2e1017]: Section titled “Terms of Service”
+                    - paragraph [ref=f2e1018]:
+                      - text: "By using this product you agree to the terms and conditions of the following license:"
+                      - link "Google APIs Terms of Service" [ref=f2e1019] [cursor=pointer]:
+                        - /url: https://console.cloud.google.com/tos?id=universal
+                      - text: .
+                  - generic [ref=f2e1021]:
+                    - link "Previous Controls & Hotkeys" [ref=f2e1022] [cursor=pointer]:
+                      - /url: /docs/learn/controls/
+                      - img [ref=f2e1023]
+                      - generic [ref=f2e1025]:
+                        - text: Previous
+                        - text: Controls & Hotkeys
+                    - link "Next Guide" [ref=f2e1026] [cursor=pointer]:
+                      - /url: /docs/mcp/guide/
+                      - img [ref=f2e1027]
+                      - generic [ref=f2e1029]:
+                        - text: Next
+                        - text: Guide

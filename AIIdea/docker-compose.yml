@@ -1,0 +1,22 @@
+services:
+  backend:
+    build: ./backend
+    ports:
+      - "${BACKEND_PORT:-8000}:8000"
+    env_file:
+      - path: .env
+        required: false
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "${FRONTEND_PORT:-3000}:3000"
+    environment:
+      # Server Components use API_URL (Docker internal network)
+      - API_URL=http://backend:8000
+      # Client Components (browser) use the public-facing port
+      - NEXT_PUBLIC_API_URL=http://localhost:${BACKEND_PORT:-8000}
+    depends_on:
+      - backend

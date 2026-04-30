@@ -1,0 +1,961 @@
+#!/usr/bin/env bash
+# lib/phases.sh - 各阶段执行逻辑（harness v2）
+#
+# 顶层流程：plan → [dev → code_review → deploy → test]（per group）→ done
+# 每个函数实现在对应 step 填充。
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+
+source "$SCRIPT_DIR/lib/utils.sh"
+source "$SCRIPT_DIR/lib/state.sh"
+source "$SCRIPT_DIR/lib/loop.sh"
+source "$SCRIPT_DIR/lib/code-review.sh"
+
+# 严格模式：达到最大轮次时直接 fail，而非 forced advance
+PHANTOM_STRICT="${PHANTOM_STRICT:-0}"
+# Fast 模式：降低 min rounds 地板
+PHANTOM_FAST="${PHANTOM_FAST:-0}"
+
+# ── 阶段 1：plan（plan R1 → plan-review R2 → plan R3 → 落锁） ──
+run_plan_phase() {
+  local work_dir="$1"
+  log_phase "阶段 1/5: plan（plan → plan-review → plan → 落锁）"
+  set_phase_status "plan" "in_progress"
+
+  # ── R1: Planner 写初稿 ───────────────────────────
+  log_info "Plan R1: Planner 起草 plan.md"
+  local r1_attempt=0
+  local r1_max=3
+  while [[ $r1_attempt -lt $r1_max ]]; do
+    r1_attempt=$((r1_attempt + 1))
+    local r1_extra=""
+    if [[ $r1_attempt -gt 1 ]]; then
+      r1_extra="⚠️ 上次尝试没有生成 .phantom/plan.md 或缺少必需章节。请直接用 Write 工具把完整 plan 写入 .phantom/plan.md（必须至少包含产品目标、Feature 列表、API 约定、评分标准四个核心章节），不要先解释、不要先列大纲。不得碰其他文件。"
+    fi
+
+    local prompt_file
+    PHANTOM_EXTRA_NOTE="$r1_extra" \
+      prompt_file=$(render_prompt "$SCRIPT_DIR/prompts/plan.md" "$work_dir")
+    ai_run_oneshot generator "$(cat "$prompt_file")" "$LOG_DIR/plan-r1-attempt${r1_attempt}.log"
+    rm -f "$prompt_file"
+
+    if [[ -f "$PLAN_FILE" ]] && _plan_has_required_sections; then
+      log_ok "Plan R1 通过：plan.md 核心章节齐全"
+      break
+    fi
+    log_warn "Plan R1 第 $r1_attempt 次未产出合格 plan.md（核心章节缺失或文件不存在）"
+  done
+
+  if ! [[ -f "$PLAN_FILE" ]] || ! _plan_has_required_sections; then
+    log_error "Plan R1 经过 $r1_max 次尝试仍未产出合格 plan.md"
+    set_phase_status "plan" "failed"
+    exit 1
+  fi
+
+  # ── R2: Plan reviewer 审查 ─────────────────────
+  log_info "Plan R2: Plan-reviewer 审查 rubric（跨模型，只提建议无否决权）"
+  local prompt_file
+  prompt_file=$(render_prompt "$SCRIPT_DIR/prompts/plan-review.md" "$work_dir")
+  ai_run_oneshot plan_reviewer "$(cat "$prompt_file")" "$LOG_DIR/plan-r2.log"
+  rm -f "$prompt_file"
+
+  if ! [[ -f "$PLAN_REVIEW_COMMENTS_FILE" ]]; then
+    log_warn "Plan R2 未产出 review comments，继续 R3（无意见=不改）"
+    printf '# Plan Review Comments\n\n无意见（R2 未产出 comments，降级）\n' > "$PLAN_REVIEW_COMMENTS_FILE"
+  fi
+
+  # ── R3: Planner 根据 comments 修订 ───────────────
+  log_info "Plan R3: Planner 根据 comments 修订 plan.md"
+  local r3_extra
+  r3_extra="这是 Plan 阶段的 R3（最后一轮）。下面是 R2 跨模型 reviewer 的意见，你可以采纳也可以忽略并写理由，但必须重新 Write .phantom/plan.md（即使只是微调）。
+
+--- Reviewer comments ---
+$(cat "$PLAN_REVIEW_COMMENTS_FILE")
+--- end comments ---
+
+请重写 .phantom/plan.md，把你决定采纳的修改落实到位。章节数不用执着——核心章节（产品目标、Feature 列表、API 约定、评分标准）必须保留，其他章节可按项目实际情况增删合并。对于忽略的建议，在对应章节末尾加一行 \"> R2 建议: ...，未采纳原因: ...\" 的 quote。"
+
+  PHANTOM_EXTRA_NOTE="$r3_extra" \
+    prompt_file=$(render_prompt "$SCRIPT_DIR/prompts/plan.md" "$work_dir")
+  ai_run_oneshot generator "$(cat "$prompt_file")" "$LOG_DIR/plan-r3.log"
+  rm -f "$prompt_file"
+
+  if ! [[ -f "$PLAN_FILE" ]] || ! _plan_has_required_sections; then
+    log_error "Plan R3 产出的 plan.md 仍不合格（核心章节缺失）"
+    set_phase_status "plan" "failed"
+    exit 1
+  fi
+
+  # ── 落锁 ──────────────────────────────────────
+  cp "$PLAN_FILE" "$PLAN_LOCKED_FILE"
+  log_ok "Plan 落锁：.phantom/plan.locked.md 已生成"
+
+  # 校验 feature 列表能被解析
+  local feature_count group_count
+  feature_count=$(count_features)
+  group_count=$(count_groups)
+  if [[ "$feature_count" -lt 5 ]]; then
+    log_error "Plan feature 列表数量 $feature_count < 5（下游无法启动）"
+    set_phase_status "plan" "failed"
+    exit 1
+  fi
+  log_ok "解析到 ${group_count} 个 group、${feature_count} 个 feature"
+  list_feature_groups_from_plan | while IFS=: read -r grp feats; do
+    echo "  [$grp] $feats"
+  done
+
+  set_phase_status "plan" "completed"
+  return 0
+}
+
+# ── 阶段 1.5：ui-design（仅前端项目，失败不阻塞主流程） ──
+#
+# 用 Google Stitch MCP 为前端页面生成视觉设计，每屏落盘到 .phantom/ui-design/
+# 纯后端项目直接 skip。Stitch MCP 只挂在 claude user-scope，所以这个 phase 强制 claude 后端。
+run_ui_design_phase() {
+  local work_dir="$1"
+
+  # 纯后端项目跳过
+  if ! _plan_has_frontend; then
+    log_info "纯后端项目，跳过 ui-design phase"
+    set_phase_status "ui_design" "skipped"
+    return 0
+  fi
+
+  # 幂等：已完成则跳过（resume 场景），除非强制重跑
+  if [[ -f "$UI_DESIGN_FILE" && -s "$UI_DESIGN_FILE" && "${PHANTOM_FORCE_UI_DESIGN:-0}" != "1" ]]; then
+    log_info "ui-design 已完成（$UI_DESIGN_FILE 存在），跳过（要强制重跑用 --ui-only 或设 PHANTOM_FORCE_UI_DESIGN=1）"
+    set_phase_status "ui_design" "completed"
+    return 0
+  fi
+
+  # 强制重跑：归档旧设计到 logs/ui-design-<timestamp>/，避免污染新一轮
+  if [[ "${PHANTOM_FORCE_UI_DESIGN:-0}" == "1" ]] && [[ -f "$UI_DESIGN_FILE" || -d "$UI_DESIGN_DIR" ]]; then
+    local archive_dir="$LOG_DIR/ui-design-$(date -u +%Y%m%dT%H%M%SZ)"
+    mkdir -p "$archive_dir"
+    [[ -f "$UI_DESIGN_FILE" ]] && mv "$UI_DESIGN_FILE" "$archive_dir/ui-design.md"
+    [[ -d "$UI_DESIGN_DIR" ]] && mv "$UI_DESIGN_DIR" "$archive_dir/ui-design/"
+    log_info "强制重跑：旧 ui-design 已归档到 $archive_dir/"
+  fi
+
+  log_phase "阶段 1.5/5: ui-design（design → design-review → design → 落定）"
+  set_phase_status "ui_design" "in_progress"
+  mkdir -p "$UI_DESIGN_DIR"
+
+  # ── R1：Designer 起草 ─────────────────────────────
+  log_info "Design R1: UI designer 起草（Stitch MCP 生成页面设计）"
+  local prompt_file
+  prompt_file=$(render_prompt "$SCRIPT_DIR/prompts/ui-design.md" "$work_dir")
+  # 用 ai_run（含 30 分钟超时保护）；ui_designer 首次必走 new 分支
+  ai_run ui_designer "$(cat "$prompt_file")" "$LOG_DIR/ui-design-r1.log" || \
+    log_warn "ui_designer R1 调用返回非 0，继续校验产物"
+  rm -f "$prompt_file"
+
+  # 校验产物（总览 + 至少写出一些 html；纯后端 fallback 也会留总览）
+  if ! [[ -f "$UI_DESIGN_FILE" ]]; then
+    log_warn "ui-design R1 未产出 ui-design.md，dev 阶段将降级自由发挥"
+    set_phase_status "ui_design" "failed"
+    # 不阻塞主流程
+    return 0
+  fi
+
+  local screen_count=0
+  if [[ -d "$UI_DESIGN_DIR" ]]; then
+    screen_count=$(find "$UI_DESIGN_DIR" -maxdepth 1 -name '*.html' -type f 2>/dev/null | wc -l | tr -d ' ')
+  fi
+
+  if [[ "$screen_count" -eq 0 ]]; then
+    log_warn "ui-design.md 存在但未产出任何 screen HTML（纯后端 fallback 或 Stitch 不可用），跳过 R2/R3 review"
+    set_phase_status "ui_design" "completed"
+    return 0
+  fi
+
+  log_ok "Design R1 通过：${screen_count} 个 screen 落盘到 .phantom/ui-design/"
+
+  # ── R2：Design reviewer 审查 ─────────────────────
+  log_info "Design R2: UI design reviewer 审查（跨模型，只提建议无否决权）"
+  prompt_file=$(render_prompt "$SCRIPT_DIR/prompts/ui-design-review.md" "$work_dir")
+  ai_run_oneshot ui_design_reviewer "$(cat "$prompt_file")" "$LOG_DIR/ui-design-r2.log"
+  rm -f "$prompt_file"
+
+  if ! [[ -f "$UI_DESIGN_REVIEW_COMMENTS_FILE" ]]; then
+    log_warn "Design R2 未产出 review comments，继续 R3（无意见=不改）"
+    printf '# UI Design Review Comments\n\n无意见（R2 未产出 comments，降级）\n' > "$UI_DESIGN_REVIEW_COMMENTS_FILE"
+  fi
+
+  # ── R3：Designer 根据 comments 修订 ───────────────
+  log_info "Design R3: UI designer 根据 comments 修订 ui-design"
+  local r3_extra
+  r3_extra="这是 UI Design 阶段的 R3（最后一轮）。下面是 R2 跨模型 reviewer 的意见，你可以采纳也可以忽略（并在 ui-design.md 的\"偏离说明\"写理由），但必须扫一遍所有 screen 决定要不要改。
+
+--- Reviewer comments ---
+$(cat "$UI_DESIGN_REVIEW_COMMENTS_FILE")
+--- end comments ---
+
+**重要约束**：
+- 已存在的 Stitch project_id / design_system_id 在 ui-design.md 里，**复用**它们，不要 create_project / create_design_system
+- 已生成的 screen html / json 在 .phantom/ui-design/ 下，**只修改需要改的 screen**，其他保持不动
+- 若 comments 里没有必须修正项（全为\"无\"或\"无意见\"），直接在 ui-design.md 末尾追加一行 \`> R2 review: 无修订\` 即可，不要重复生成 screen
+- 如果修改了某屏的 html，用 Write 工具覆盖对应的 .phantom/ui-design/<slug>.html；若只是文案微调无需重新调 Stitch
+- 产出的 ui-design.md 要体现 R3 的变动摘要（在末尾加一节 \"## R3 修订记录\" 或在\"偏离说明\"里写）"
+
+  PHANTOM_EXTRA_NOTE="$r3_extra" \
+    prompt_file=$(render_prompt "$SCRIPT_DIR/prompts/ui-design.md" "$work_dir")
+  ai_run ui_designer "$(cat "$prompt_file")" "$LOG_DIR/ui-design-r3.log" || \
+    log_warn "ui_designer R3 调用返回非 0，以现有产物收尾"
+  rm -f "$prompt_file"
+
+  # R3 后重新数 screen（可能新增或删除）
+  local final_screen_count=0
+  [[ -d "$UI_DESIGN_DIR" ]] && \
+    final_screen_count=$(find "$UI_DESIGN_DIR" -maxdepth 1 -name '*.html' -type f 2>/dev/null | wc -l | tr -d ' ')
+
+  log_ok "ui-design 完成（R1→R2→R3）：最终 ${final_screen_count} 个 screen"
+  set_phase_status "ui_design" "completed"
+  return 0
+}
+
+# 辅助：检测 plan 是否包含前端
+# 只匹配强信号：明确的框架名 / 目录路径 / 文件后缀
+# 不用裸的 "前端" 二字（中文描述中常出现在"无前端页面"等否定语境里，误判率高）
+_plan_has_frontend() {
+  [[ -f "$PLAN_LOCKED_FILE" ]] || return 1
+  grep -Eqi '(frontend/|\bReact\b|\bVue\b|Svelte|Angular|Next\.js|\bVite\b|TypeScript|\.tsx\b|\.jsx\b|前端框架|前端栈|前端：|前端:)' "$PLAN_LOCKED_FILE"
+}
+
+# 检查 plan.md 是否包含下游必需的 4 个核心章节（按关键字，不限编号）
+# 核心章节是下游 phase 机械化消费的：
+#   - 产品目标（CLAUDE.md 生成时用）
+#   - Feature 列表（dev / test 消费）
+#   - API 约定（deploy smoke curl 消费）
+#   - 评分标准/rubric（test 打分依据）
+# 其他章节（技术栈、数据模型、非功能、编码标准、部署配置）虽然重要但 AI 会按需自己展开，
+# 不做硬校验以免过度约束 planner。
+_plan_has_required_sections() {
+  [[ -f "$PLAN_FILE" ]] || return 1
+  # 关键字（正则），每条至少命中一个 H2 标题
+  grep -Eq '^##[^#].*产品目标' "$PLAN_FILE" || return 1
+  grep -Eq '^##[^#].*(Feature|功能)[^#]*(列表|List)' "$PLAN_FILE" || return 1
+  grep -Eq '^##[^#].*(API|接口).*(约定|规范)?' "$PLAN_FILE" || return 1
+  grep -Eq '^##[^#].*(评分|rubric|Rubric|验收标准)' "$PLAN_FILE" || return 1
+  return 0
+}
+
+# ── 阶段 2：dev（单次 dev round，compaction 长会话） ────
+#
+# 调用方（主循环）负责 group 迭代与 return-packet 传递；
+# 这里只跑一个 dev round——注入当前 group 的 feature 列表，调用 generator，
+# 校验 changelog.md 有新条目。
+# $2 = features_csv，逗号分隔的 feature slug 列表
+run_dev_phase() {
+  local work_dir="$1" features_csv="$2"
+  set_phase_status "dev" "in_progress"
+  increment_iteration "dev"
+  local iter
+  iter=$(get_phase_iteration "dev")
+  local log_tag; log_tag=$(_compact_log_tag "$features_csv")
+  log_phase "阶段 2/5: dev（features=${features_csv}, iter=${iter}）"
+
+  # 首次 dev 时分配端口（幂等，已分配则直接读）。端口会通过 prompt 注入 dev AI，
+  # AI 负责直接写死进代码 / 配置，不再走环境变量
+  local _ports_existed=true
+  [[ -s "$BACKEND_PORT_FILE" && -s "$FRONTEND_PORT_FILE" ]] || _ports_existed=false
+  ensure_ports
+  if [[ "$_ports_existed" == false ]]; then
+    log_info "已分配端口: backend=$(cat "$BACKEND_PORT_FILE"), frontend=$(cat "$FRONTEND_PORT_FILE")"
+  fi
+
+  local changelog_before=0
+  [[ -f "$CHANGELOG_FILE" ]] && changelog_before=$(grep -c '^## Iteration ' "$CHANGELOG_FILE" 2>/dev/null || echo 0)
+
+  local log_file="$LOG_DIR/dev-iter${iter}-${log_tag}.log"
+  local prompt_file
+  PHANTOM_FEATURE="$features_csv" \
+    prompt_file=$(render_prompt "$SCRIPT_DIR/prompts/develop.md" "$work_dir")
+  ai_run generator "$(cat "$prompt_file")" "$log_file"
+  rm -f "$prompt_file"
+
+  # 校验 changelog.md 新增了本 iteration 的条目
+  local changelog_after=0
+  [[ -f "$CHANGELOG_FILE" ]] && changelog_after=$(grep -c '^## Iteration ' "$CHANGELOG_FILE" 2>/dev/null || echo 0)
+
+  if [[ "$changelog_after" -le "$changelog_before" ]]; then
+    log_warn "dev 未在 changelog.md 新增 Iteration 条目（${changelog_before} → ${changelog_after}），触发补救 round"
+    local fix_prompt
+    fix_prompt=$(mktemp)
+    cat > "$fix_prompt" <<'EOF'
+你刚刚完成的 dev round **没有在 .phantom/changelog.md 追加新的 `## Iteration <N>` 条目**。
+
+请**只做这件事**：
+1. 运行 `git diff --stat HEAD` 查看本轮改动
+2. 按固定格式在 .phantom/changelog.md 末尾追加一节：
+
+```markdown
+## Iteration <N> — <feature-slugs>
+
+### 做了什么
+- <概述本轮写的功能>
+
+### 自测结果
+- 单测：<N> 条，<M> 通过，覆盖率 <X>%
+- 静态检查：<tool> 0 error
+
+### 已知遗留
+- （无 / 简述）
+```
+
+3. 完成后停止，不要开始新功能
+EOF
+    ai_run generator "$(cat "$fix_prompt")" "${log_file%.log}-changelog-fix.log"
+    rm -f "$fix_prompt"
+  fi
+
+  # 跑完这一 round 后清除 return-packet（已被消费），归档到 logs/
+  if [[ -f "$RETURN_PACKET_FILE" ]]; then
+    archive_return_packet "$iter"
+    rm -f "$RETURN_PACKET_FILE"
+  fi
+
+  set_phase_status "dev" "completed"
+  return 0
+}
+
+# ── 阶段 3：code-review（AI 语义审查 + shell 兜底 grep） ──
+#
+# 返回：0 = pass，1 = fail（reviewer 或 shell 兜底命中）
+run_code_review_phase() {
+  local work_dir="$1" features_csv="$2"
+  set_phase_status "code_review" "in_progress"
+  increment_iteration "code_review"
+  local iter
+  iter=$(get_phase_iteration "code_review")
+  local log_tag; log_tag=$(_compact_log_tag "$features_csv")
+  log_phase "阶段 3/5: code-review（features=${features_csv}, iter=${iter}）"
+
+  reset_last_code_review
+
+  local log_file="$LOG_DIR/code-review-iter${iter}-${log_tag}.log"
+  local prompt_file
+  PHANTOM_FEATURE="$features_csv" \
+    prompt_file=$(render_prompt "$SCRIPT_DIR/prompts/code-review.md" "$work_dir")
+  ai_run code_reviewer "$(cat "$prompt_file")" "$log_file"
+  rm -f "$prompt_file"
+
+  # 1. 校验 JSON 合法性
+  if ! last_code_review_valid_json; then
+    log_warn "code-review 未输出合法 JSON，强制 fail"
+    cat > "$LAST_CODE_REVIEW_FILE" <<EOF
+{"verdict":"fail","feature":"${features_csv}","issues":[{"category":"other","where":"reviewer","what":"reviewer 未输出合法 JSON","evidence":"jq empty 失败"}],"notes":""}
+EOF
+    _write_code_review_return_packet "$features_csv" "$iter"
+    set_phase_status "code_review" "failed"
+    return 1
+  fi
+
+  local verdict
+  verdict=$(read_code_review_verdict)
+
+  if [[ "$verdict" != "pass" ]]; then
+    log_warn "code-review verdict=$verdict"
+    _write_code_review_return_packet "$features_csv" "$iter"
+    set_phase_status "code_review" "failed"
+    return 1
+  fi
+
+  # 2. Reviewer 说 pass → 跑 shell 兜底复查
+  log_info "Reviewer verdict=pass，执行 shell 兜底 grep 复查"
+  if run_shell_code_review; then
+    log_ok "code-review 通过（reviewer pass + shell 兜底 0 命中）"
+    set_phase_status "code_review" "completed"
+    return 0
+  fi
+
+  log_warn "shell 兜底复查发现 ${#_SHELL_REVIEW_HITS[@]} 处问题，强制降级 reviewer verdict=pass 为 fail"
+
+  # 把 shell 发现的问题注入 last-code-review.json
+  local tmp
+  tmp=$(mktemp)
+  local hits_json
+  hits_json=$(printf '%s\n' "${_SHELL_REVIEW_HITS[@]}" | jq -R -s 'split("\n") | map(select(length > 0))')
+  jq --argjson hits "$hits_json" \
+     '.verdict = "fail" | .issues += ($hits | map({category: "shell-grep", where: ".", what: ., evidence: "shell grep"}))' \
+     "$LAST_CODE_REVIEW_FILE" > "$tmp" && mv "$tmp" "$LAST_CODE_REVIEW_FILE"
+
+  _write_code_review_return_packet "$features_csv" "$iter"
+  set_phase_status "code_review" "failed"
+  return 1
+}
+
+# 写 return-packet.md（code-review 失败时）
+_write_code_review_return_packet() {
+  local features_csv="$1" iter="$2"
+  local timestamp
+  timestamp=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+  local log_tag; log_tag=$(_compact_log_tag "$features_csv")
+
+  # 从 last-code-review.json 取 issues
+  local issues_section=""
+  if last_code_review_valid_json; then
+    issues_section=$(jq -r '.issues[] | "- [code-review] \(.where): \(.what) (evidence: \(.evidence))"' "$LAST_CODE_REVIEW_FILE" 2>/dev/null)
+  fi
+  if [[ -z "$issues_section" ]]; then
+    issues_section="- [code-review] reviewer 失败但没输出具体 issues，见日志"
+  fi
+
+  cat > "$RETURN_PACKET_FILE" <<EOF
+---
+return_from: code-review
+iteration: $iter
+feature: $features_csv
+triggered_at: $timestamp
+---
+
+## 为什么回来
+
+Code review 发现硬性问题，dev 必须修掉。
+
+## 必修项（硬性，dev 必须全部修掉）
+
+$issues_section
+
+## 建议项（软性，dev 自行判断改不改）
+
+- （无）
+
+## 全量报告
+
+- \`.phantom/last-code-review.json\`
+- \`.phantom/logs/code-review-iter${iter}-${log_tag}.log\`
+EOF
+}
+
+# ── 阶段 4：deploy（本地启动 + shell 确定性判断） ──
+#
+# AI 只负责写 scripts/start-backend.sh (+ start-frontend.sh)，
+# shell 负责：kill 旧 PID → nohup 启动新进程 → 等端口就绪 → smoke test
+# 返回：0 = pass，1 = fail（自试 2 次都失败后写 return-packet）
+
+# 辅助：kill 掉指定 PID 文件中的进程（如果存在且还活着）
+_kill_pid_file() {
+  local pid_file="$1"
+  [[ -f "$pid_file" ]] || return 0
+  local pid
+  pid=$(cat "$pid_file" 2>/dev/null)
+  if [[ -n "$pid" ]] && kill -0 "$pid" 2>/dev/null; then
+    log_info "杀掉旧进程 PID=$pid"
+    kill -TERM "$pid" 2>/dev/null || true
+    sleep 2
+    kill -0 "$pid" 2>/dev/null && kill -9 "$pid" 2>/dev/null || true
+    # 杀掉子进程（npm run 通常会 spawn 子进程）
+    pkill -P "$pid" 2>/dev/null || true
+  fi
+  rm -f "$pid_file"
+}
+
+# 辅助：kill 掉本项目所有运行时进程
+kill_runtime_processes() {
+  _kill_pid_file "$RUNTIME_DIR/backend.pid"
+  _kill_pid_file "$RUNTIME_DIR/frontend.pid"
+}
+
+# 辅助：等端口就绪
+_wait_port() {
+  local port="$1" timeout="${2:-60}" waited=0
+  while [[ $waited -lt $timeout ]]; do
+    if curl -sf -o /dev/null --max-time 2 "http://localhost:${port}/" 2>/dev/null \
+       || curl -sf -o /dev/null --max-time 2 "http://localhost:${port}/api/health" 2>/dev/null \
+       || (echo > "/dev/tcp/localhost/${port}") 2>/dev/null; then
+      return 0
+    fi
+    sleep 2
+    waited=$((waited + 2))
+  done
+  return 1
+}
+
+run_deploy_phase() {
+  local work_dir="$1" features_csv="$2"
+  set_phase_status "deploy" "in_progress"
+  increment_iteration "deploy"
+  local iter
+  iter=$(get_phase_iteration "deploy")
+  log_phase "阶段 4/5: deploy（features=${features_csv}, iter=${iter}）"
+
+  local backend_port frontend_port
+  backend_port=$(cat "$BACKEND_PORT_FILE" 2>/dev/null || cat "$PORT_FILE" 2>/dev/null || echo 8080)
+  frontend_port=$(cat "$FRONTEND_PORT_FILE" 2>/dev/null || echo 5173)
+
+  mkdir -p "$RUNTIME_DIR"
+
+  # 自试 2 次
+  local attempt=0
+  local max_attempts=2
+  local deploy_err=""
+
+  while [[ $attempt -lt $max_attempts ]]; do
+    attempt=$((attempt + 1))
+    log_info "Deploy attempt ${attempt}/${max_attempts}"
+
+    local log_file="$LOG_DIR/deploy-iter${iter}-attempt${attempt}.log"
+    local prompt_file
+    local extra_note=""
+    if [[ -n "$deploy_err" ]]; then
+      extra_note="⚠️ 上次启动失败，错误如下（请据此修启动脚本或源码）：
+
+$deploy_err"
+    fi
+
+    PHANTOM_FEATURE="$features_csv" PHANTOM_EXTRA_NOTE="$extra_note" \
+      prompt_file=$(render_prompt "$SCRIPT_DIR/prompts/deploy.md" "$work_dir")
+    ai_run deploy "$(cat "$prompt_file")" "$log_file"
+    rm -f "$prompt_file"
+
+    # Shell 侧确定性判断
+    deploy_err=""
+
+    # 0. 先 kill 旧进程
+    kill_runtime_processes
+
+    # 1. 校验启动脚本存在
+    if ! [[ -f "scripts/start-backend.sh" ]]; then
+      deploy_err="scripts/start-backend.sh 不存在"
+      log_warn "$deploy_err"
+      continue
+    fi
+    chmod +x scripts/start-backend.sh
+    local has_frontend=false
+    if [[ -f "scripts/start-frontend.sh" ]]; then
+      chmod +x scripts/start-frontend.sh
+      has_frontend=true
+    fi
+
+    # 2. 启动 backend（端口已在代码里硬编码，脚本直接启动）
+    log_info "[1/3] 启动 backend（端口 ${backend_port}）"
+    (
+      cd "$work_dir" && \
+      nohup bash scripts/start-backend.sh > "$RUNTIME_DIR/backend.log" 2>&1 &
+      echo $! > "$RUNTIME_DIR/backend.pid"
+    )
+    sleep 1
+    local backend_pid
+    backend_pid=$(cat "$RUNTIME_DIR/backend.pid" 2>/dev/null)
+    if [[ -z "$backend_pid" ]] || ! kill -0 "$backend_pid" 2>/dev/null; then
+      deploy_err="backend 启动后立即退出（见 $RUNTIME_DIR/backend.log）$(tail -20 "$RUNTIME_DIR/backend.log" 2>/dev/null | sed 's/^/  /')"
+      log_warn "$deploy_err"
+      continue
+    fi
+
+    # 3. 启动 frontend（如果有）
+    if [[ "$has_frontend" == true ]]; then
+      log_info "[2/3] 启动 frontend（端口 ${frontend_port}）"
+      (
+        cd "$work_dir" && \
+        nohup bash scripts/start-frontend.sh > "$RUNTIME_DIR/frontend.log" 2>&1 &
+        echo $! > "$RUNTIME_DIR/frontend.pid"
+      )
+      sleep 1
+      local frontend_pid
+      frontend_pid=$(cat "$RUNTIME_DIR/frontend.pid" 2>/dev/null)
+      if [[ -z "$frontend_pid" ]] || ! kill -0 "$frontend_pid" 2>/dev/null; then
+        deploy_err="frontend 启动后立即退出（见 $RUNTIME_DIR/frontend.log）$(tail -20 "$RUNTIME_DIR/frontend.log" 2>/dev/null | sed 's/^/  /')"
+        log_warn "$deploy_err"
+        kill_runtime_processes
+        continue
+      fi
+    fi
+
+    # 4. 等端口就绪（backend 60s）
+    log_info "[3/3] 等待 backend 端口 ${backend_port} 就绪"
+    if ! _wait_port "$backend_port" 60; then
+      deploy_err="backend 端口 ${backend_port} 60s 内未就绪，日志末尾：
+$(tail -30 "$RUNTIME_DIR/backend.log" 2>/dev/null | sed 's/^/  /')"
+      log_warn "$deploy_err"
+      kill_runtime_processes
+      continue
+    fi
+
+    if [[ "$has_frontend" == true ]]; then
+      log_info "等待 frontend 端口 ${frontend_port} 就绪"
+      if ! _wait_port "$frontend_port" 60; then
+        deploy_err="frontend 端口 ${frontend_port} 60s 内未就绪，日志末尾：
+$(tail -30 "$RUNTIME_DIR/frontend.log" 2>/dev/null | sed 's/^/  /')"
+        log_warn "$deploy_err"
+        kill_runtime_processes
+        continue
+      fi
+    fi
+
+    # 5. Smoke 测试：对每个 API 端点跑 happy path curl，要求非 5xx
+    log_info "Smoke 测试所有 API 端点"
+    local smoke_failures=""
+    local endpoints
+    endpoints=$(_extract_endpoints_from_plan)
+    if [[ -z "$endpoints" ]]; then
+      log_warn "从 plan 中未提取到 API 端点，仅验证根路径"
+      endpoints="GET /"
+    fi
+
+    while IFS= read -r ep; do
+      [[ -z "$ep" ]] && continue
+      local method path
+      method=$(echo "$ep" | awk '{print $1}')
+      path=$(echo "$ep" | awk '{print $2}')
+      local url="http://localhost:${backend_port}${path}"
+      local code
+      code=$(curl -s -o /dev/null -w '%{http_code}' -X "$method" --max-time 10 "$url" 2>/dev/null || echo "000")
+      echo "    [$method $path] → HTTP $code" >>"$log_file"
+      if [[ "$code" =~ ^5[0-9][0-9]$ ]] || [[ "$code" == "000" ]]; then
+        smoke_failures+="$method $path → $code
+"
+      fi
+    done <<< "$endpoints"
+
+    if [[ -n "$smoke_failures" ]]; then
+      deploy_err="Smoke 测试失败：
+$smoke_failures
+backend.log 末尾：
+$(tail -30 "$RUNTIME_DIR/backend.log" 2>/dev/null | sed 's/^/  /')"
+      log_warn "$deploy_err"
+      kill_runtime_processes
+      continue
+    fi
+
+    # 成功：进程保持运行，不清理
+    log_ok "Deploy 通过：本地进程启动 + smoke 全绿"
+    log_info "Backend PID=$(cat $RUNTIME_DIR/backend.pid) 端口 ${backend_port} 常驻"
+    if [[ "$has_frontend" == true ]]; then
+      log_info "Frontend PID=$(cat $RUNTIME_DIR/frontend.pid) 端口 ${frontend_port} 常驻"
+    fi
+    log_info "运行时日志：$RUNTIME_DIR/{backend,frontend}.log"
+    set_phase_status "deploy" "completed"
+    return 0
+  done
+
+  # 2 次自试都失败 → 写 return-packet 回 dev
+  log_error "Deploy 自试 $max_attempts 次后仍失败"
+  _write_deploy_return_packet "$features_csv" "$iter" "$deploy_err"
+  set_phase_status "deploy" "failed"
+  return 1
+}
+
+# 从 plan.locked.md 的 API 章节提取端点
+# 按关键字匹配章节；匹配 "METHOD /path" 格式
+_extract_endpoints_from_plan() {
+  [[ -f "$PLAN_LOCKED_FILE" ]] || return
+  awk '
+    /^##[^#].*(API|接口).*(约定|规范)?/ { in_section=1; next }
+    /^##[^#]/ { in_section=0 }
+    in_section {
+      if (match($0, /(GET|POST|PUT|PATCH|DELETE|HEAD)[[:space:]]+\/[^ \t`]*/)) {
+        s = substr($0, RSTART, RLENGTH)
+        print s
+      }
+    }
+  ' "$PLAN_LOCKED_FILE" | sort -u
+}
+
+_write_deploy_return_packet() {
+  local features_csv="$1" iter="$2" err="$3"
+  local timestamp
+  timestamp=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+
+  cat > "$RETURN_PACKET_FILE" <<EOF
+---
+return_from: deploy
+iteration: $iter
+feature: $features_csv
+triggered_at: $timestamp
+---
+
+## 为什么回来
+
+Deploy 自试 2 次后仍失败。可能是启动脚本 / 依赖配置问题，也可能是源代码有问题（启动后崩溃或返回 5xx）。
+
+## 必修项（硬性，dev 必须全部修掉）
+
+- [deploy] $err
+
+## 建议项（软性，dev 自行判断改不改）
+
+- （无）
+
+## 全量报告
+
+- \`.phantom/logs/deploy-iter${iter}-attempt*.log\`
+EOF
+}
+
+# ── 阶段 5：test（接口 + E2E + rubric 评分） ────────
+#
+# 调用方负责 min/max rounds 计数；这里只跑单次 test round。
+# 返回：0 = pass（分数 ≥90）；1 = fail
+run_test_phase() {
+  local work_dir="$1" features_csv="$2"
+  set_phase_status "test" "in_progress"
+  increment_iteration "test"
+  local iter
+  iter=$(get_phase_iteration "test")
+  local log_tag; log_tag=$(_compact_log_tag "$features_csv")
+  log_phase "阶段 5/5: test（features=${features_csv}, iter=${iter}）"
+
+  local log_file="$LOG_DIR/test-iter${iter}-${log_tag}.log"
+  local prompt_file
+  PHANTOM_FEATURE="$features_csv" \
+    prompt_file=$(render_prompt "$SCRIPT_DIR/prompts/test.md" "$work_dir")
+  ai_run tester "$(cat "$prompt_file")" "$log_file"
+  rm -f "$prompt_file"
+
+  # 辅助：解析 Playwright JSON 结果（如果 tester 生成了脚本并跑了）
+  local pw_results="$work_dir/.playwright/results.json"
+  if [[ -f "$pw_results" ]]; then
+    local pw_stats
+    pw_stats=$(python3 -u -c "
+import json, sys
+try:
+    r = json.load(open(sys.argv[1]))
+    total = passed = failed = 0
+    def count(suites):
+        global total, passed, failed
+        for s in suites:
+            for t in s.get('specs', []):
+                for test in t.get('tests', []):
+                    total += 1
+                    status = test.get('results', [{}])[-1].get('status', '')
+                    if status == 'passed': passed += 1
+                    elif status in ('failed', 'timedOut'): failed += 1
+            count(s.get('suites', []))
+    count(r.get('suites', []))
+    print(f'{total} {passed} {failed}')
+except Exception:
+    print('0 0 0')
+" "$pw_results" 2>/dev/null || echo "0 0 0")
+    local pw_total pw_passed pw_failed
+    read -r pw_total pw_passed pw_failed <<< "$pw_stats"
+    if [[ "$pw_total" -gt 0 ]]; then
+      log_info "Playwright 脚本结果：${pw_passed}/${pw_total} passed, ${pw_failed} failed"
+    fi
+  fi
+
+  # 校验 test-report 存在
+  local report_file="$STATE_DIR/test-report-iter${iter}.md"
+  if ! [[ -f "$report_file" ]]; then
+    log_warn "tester 未产出 test-report-iter${iter}.md，强制 fail 并构造 return-packet"
+    _write_test_return_packet "$features_csv" "$iter" "0" "tester 未产出 test-report-iter${iter}.md"
+    set_phase_status "test" "failed"
+    return 1
+  fi
+
+  # 从 report 提取总分
+  local score
+  score=$(_extract_score_from_report "$report_file")
+  if [[ -z "$score" ]] || [[ ! "$score" =~ ^[0-9]+$ ]]; then
+    log_warn "无法从 test-report 提取总分，强制 fail"
+    _write_test_return_packet "$features_csv" "$iter" "0" "无法从 test-report-iter${iter}.md 提取总分"
+    set_phase_status "test" "failed"
+    return 1
+  fi
+
+  log_info "test round $iter 总分: $score/100"
+
+  if [[ "$score" -ge 90 ]]; then
+    log_ok "test 通过（$score/100 ≥ 90）"
+    set_phase_status "test" "completed"
+    return 0
+  fi
+
+  log_warn "test 分数 $score < 90，写 return-packet 回 dev"
+  # 如果 tester 已经写了 return-packet 就用它；否则 shell 兜底写一份
+  if ! return_packet_exists; then
+    _write_test_return_packet "$features_csv" "$iter" "$score" "分数 $score < 90 但 tester 没写 return-packet"
+  fi
+  set_phase_status "test" "failed"
+  return 1
+}
+
+# ── --test 模式单独入口：只重跑 test 一次，不会回流 dev ─────
+# 前置：deploy 产物 + 进程在线；如有 .phantom/test-extra-note.md，tester prompt 会读
+run_test_only_phase() {
+  local work_dir="$1"
+
+  # 前置校验：backend 进程在线
+  local backend_pid
+  backend_pid=$(cat "$RUNTIME_DIR/backend.pid" 2>/dev/null)
+  if [[ -z "$backend_pid" ]] || ! kill -0 "$backend_pid" 2>/dev/null; then
+    log_error "backend 进程不在线（PID=${backend_pid:-none}）。请先 --dev-test 或 --resume 完成一次部署。"
+    return 1
+  fi
+  log_info "backend PID ${backend_pid} 在线"
+
+  # 拼所有 feature slug 作为 features_csv 标签
+  local features_csv
+  features_csv=$(list_feature_groups_from_plan 2>/dev/null | awk -F: '{print $2}' | tr '\n' ',' | sed 's/,$//')
+  [[ -z "$features_csv" ]] && features_csv="all-features"
+
+  log_phase "阶段 5/5: test（--test 模式单独重跑，features=${features_csv}）"
+
+  # 用户通过 --test "xxx" 给出的测试侧重点（存在则通过 EXTRA_NOTE 传给 tester）
+  local extra_note=""
+  local extra_note_file="$STATE_DIR/test-extra-note.md"
+  if [[ -f "$extra_note_file" ]]; then
+    extra_note="⚠️ 用户通过 \`phantom --test\` 指定了本轮测试侧重点，请优先验证以下点（同时仍按 rubric 出完整报告）：
+
+$(cat "$extra_note_file")"
+    log_info "已加载用户测试侧重点：$extra_note_file"
+  fi
+
+  # 调用常规 test phase；失败不构造 test-return-packet 也无所谓
+  # （--test 是单节点模式，用户显式触发一次测试，不自动回流 dev）
+  local rc=0
+  PHANTOM_EXTRA_NOTE="$extra_note" \
+    run_test_phase "$work_dir" "$features_csv" || rc=$?
+
+  # 清掉 extra-note（一次性使用）
+  rm -f "$extra_note_file"
+
+  if [[ $rc -ne 0 ]]; then
+    log_warn "test 未通过。查看 .phantom/test-report-iter*.md 获取详情；如要修复请跑 --dev-test \"<要修的问题>\""
+    # 清掉 tester 写的 return-packet，避免后续 --dev-test 以为是上游回流
+    [[ -f "$RETURN_PACKET_FILE" ]] && archive_return_packet "$(get_phase_iteration test)"
+    return 1
+  fi
+  log_ok "test 通过（--test 模式完成）"
+  return 0
+}
+
+# 从 test-report.md 第一行"总分"提取分数
+# 支持格式："## 总分: 82/100" 或 "**总分**: 82/100" 等
+_extract_score_from_report() {
+  local report="$1"
+  grep -Eo '总分[^0-9]*[0-9]+' "$report" | head -1 | grep -Eo '[0-9]+'
+}
+
+_write_test_return_packet() {
+  local features_csv="$1" iter="$2" score="$3" reason="$4"
+  local timestamp
+  timestamp=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+  local log_tag; log_tag=$(_compact_log_tag "$features_csv")
+
+  cat > "$RETURN_PACKET_FILE" <<EOF
+---
+return_from: test
+iteration: $iter
+feature: $features_csv
+triggered_at: $timestamp
+---
+
+## 为什么回来
+
+Test 评分 ${score}/100，低于阈值 80。$reason
+
+## 必修项（硬性，dev 必须全部修掉）
+
+- [test] ${reason}，请查看 \`.phantom/test-report-iter${iter}.md\` 定位问题
+
+## 建议项（软性）
+
+- （无）
+
+## 全量报告
+
+- \`.phantom/test-report-iter${iter}.md\`
+- \`.phantom/logs/test-iter${iter}-${log_tag}.log\`
+EOF
+}
+
+# ── Feature 分组与列表读取（从 plan.locked.md 的 Feature 章节） ──────
+#
+# 新格式：H3 = group（### group-N: name），H4 = feature（#### feature-N-slug）
+# 兼容旧格式：H3 = feature（### feature-N-slug），此时每个 feature 自成一组
+
+# 列出所有 group，每行格式：group-N:feature-1-slug,feature-2-slug,...
+list_feature_groups_from_plan() {
+  [[ -f "$PLAN_LOCKED_FILE" ]] || return 1
+  awk '
+    /^##[^#].*(Feature|功能).*(列表|List)/ { in_section=1; next }
+    /^##[^#]/ {
+      if (in_section && current_group != "" && features != "") {
+        print current_group ":" features
+      }
+      in_section=0
+    }
+    !in_section { next }
+
+    # H3: 可能是 group 标题，也可能是旧格式的 feature
+    /^### / {
+      line = $0
+      gsub(/^### /, "", line)
+
+      # 先检查是否是 group-N: name 格式
+      if (line ~ /^group-[0-9]+:/) {
+        # 输出上一个 group（如果有）
+        if (current_group != "" && features != "") {
+          print current_group ":" features
+        }
+        slug = line
+        gsub(/:.*$/, "", slug)
+        gsub(/^[[:space:]]+|[[:space:]]+$/, "", slug)
+        current_group = slug
+        features = ""
+        next
+      }
+
+      # 旧格式兼容：H3 直接是 feature slug
+      gsub(/:.*$/, "", line)
+      gsub(/^[[:space:]]+|[[:space:]]+$/, "", line)
+      if (line ~ /^feature-[0-9]+-[a-z0-9][-a-z0-9]*$/) {
+        # 每个 feature 自成一组
+        if (current_group != "" && features != "") {
+          print current_group ":" features
+        }
+        current_group = "group-auto-" line
+        features = line
+      }
+      next
+    }
+
+    # H4: group 内的 feature
+    /^#### / {
+      line = $0
+      gsub(/^#### /, "", line)
+      gsub(/:.*$/, "", line)
+      gsub(/^[[:space:]]+|[[:space:]]+$/, "", line)
+      if (line ~ /^feature-[0-9]+-[a-z0-9][-a-z0-9]*$/) {
+        if (features == "") {
+          features = line
+        } else {
+          features = features "," line
+        }
+      }
+    }
+
+    END {
+      if (in_section && current_group != "" && features != "") {
+        print current_group ":" features
+      }
+    }
+  ' "$PLAN_LOCKED_FILE"
+}
+
+# 根据索引取第 N 个 group 的 feature 列表（逗号分隔）
+get_group_by_index() {
+  local idx="$1"
+  list_feature_groups_from_plan | sed -n "$((idx + 1))p"
+}
+
+# group 总数
+count_groups() {
+  list_feature_groups_from_plan | wc -l | tr -d ' '
+}
+
+# 列出所有 feature slug（扁平，兼容旧调用）
+list_features_from_plan() {
+  [[ -f "$PLAN_LOCKED_FILE" ]] || return 1
+  list_feature_groups_from_plan | while IFS=: read -r _group features; do
+    echo "$features" | tr ',' '\n'
+  done
+}
+
+# feature 总数
+count_features() {
+  list_features_from_plan | wc -l | tr -d ' '
+}

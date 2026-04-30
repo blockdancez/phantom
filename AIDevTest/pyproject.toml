@@ -1,0 +1,25 @@
+[project]
+name = "ai-devtest"
+version = "0.1.0"
+description = "AIJuicer ai-devtest worker — wraps the phantom CLI for the devtest step."
+requires-python = ">=3.12"
+dependencies = [
+  "aijuicer-sdk>=0.7.0",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.0",
+  "pytest-asyncio>=0.23",
+]
+
+[project.scripts]
+ai-devtest = "ai_devtest.agent:agent.run"
+
+[tool.setuptools]
+packages = ["ai_devtest"]
+package-dir = {"ai_devtest" = "."}
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]

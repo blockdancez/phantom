@@ -1,0 +1,107 @@
+[project]
+name = "aijuicer"
+version = "0.1.0"
+description = "AI 榨汁机 —— 端到端软件交付流水线调度平台"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.110",
+    "uvicorn[standard]>=0.27",
+    "sqlalchemy[asyncio]>=2.0",
+    "asyncpg>=0.29",
+    "alembic>=1.13",
+    "pydantic>=2.6",
+    "pydantic-settings>=2.2",
+    "structlog>=24.1",
+    "python-json-logger>=2.0",
+    "httpx>=0.27",
+    "python-multipart>=0.0.9",
+    "redis>=5.0",
+    "sse-starlette>=2.1",
+    "prometheus-client>=0.20",
+    "typer>=0.12",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.23",
+    "pytest-cov>=4.1",
+    "testcontainers[postgres]>=4.0",
+    "ruff>=0.3",
+    "mypy>=1.8",
+    "pre-commit>=3.6",
+    "fakeredis>=2.20",
+]
+
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = [".", "sdk", "cli"]
+include = ["scheduler*", "aijuicer_sdk*", "aijuicer_cli*"]
+
+[project.scripts]
+aijuicer = "aijuicer_cli.main:app"
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+exclude = ["alembic/versions/"]
+
+[tool.ruff.lint]
+select = ["E", "W", "F", "I", "B", "UP", "T20"]  # T20 禁用 print
+ignore = ["B008"]  # FastAPI Depends() 在默认参数中是标准用法
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+ignore_missing_imports = true
+
+# TODO: M2 逐步补全严格类型注解；目前 storage/engine/api 层有 dict type-arg 警告、
+#       tests 层缺函数注解，均属可预期问题，统一在 override 里降低严格度。
+[[tool.mypy.overrides]]
+module = [
+    "scheduler.storage.*",
+    "scheduler.engine.*",
+    "scheduler.api.*",
+    "scheduler.main",
+    "scheduler.tests.*",
+]
+disable_error_code = ["type-arg", "no-untyped-def", "no-untyped-call"]
+
+# SDK 层：httpx / redis 的返回类型大量是 Any；Agent 构造从 env 读默认值带 | None；
+# tests 用 AsyncMock 冒充 client — 这些都在 M2 最小可用里做宽松处理，M3/M5
+# 再逐步收紧（TODO：完整类型注解等 SDK 面向外部发布时再做）。
+[[tool.mypy.overrides]]
+module = [
+    "aijuicer_sdk.*",
+    "aijuicer_cli.*",
+]
+disable_error_code = [
+    "type-arg",
+    "no-untyped-def",
+    "no-untyped-call",
+    "no-any-return",
+    "arg-type",
+    "attr-defined",
+]
+
+[[tool.mypy.overrides]]
+module = [
+    "scheduler.observability.*",
+]
+disable_error_code = ["no-untyped-def", "arg-type", "no-any-return"]
+
+[[tool.mypy.overrides]]
+module = [
+    "scheduler.tests.test_config",
+    "scheduler.tests.conftest",
+]
+disable_error_code = ["call-arg", "unused-ignore"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "session"
+asyncio_default_test_loop_scope = "session"
+testpaths = ["scheduler/tests", "sdk/tests"]

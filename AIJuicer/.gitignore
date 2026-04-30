@@ -1,0 +1,33 @@
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.env
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+dist/
+build/
+*.log
+.DS_Store
+
+# IDE
+.idea/
+.vscode/
+
+# Runtime data (logs / artifacts / dev DB)
+var/
+
+# Next.js / pnpm
+webui/node_modules/
+webui/.next/
+webui/out/
+webui/next-env.d.ts
+node_modules/
+
+# Python builds
+sdk/dist/
+sdk/build/

@@ -1,0 +1,14 @@
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.3.0
+    hooks:
+      - id: ruff
+        args: [--fix]
+      - id: ruff-format
+  - repo: local
+    hooks:
+      - id: no-print
+        name: Reject print / console.log
+        entry: 'print\(|console\.log'
+        language: pygrep
+        files: \.(py|js|jsx|ts|tsx|mjs|cjs)$

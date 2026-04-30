@@ -1,0 +1,145 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-sans);
+  --font-mono: var(--font-geist-mono);
+  --font-serif: var(--font-serif);
+  --font-heading: var(--font-serif);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+
+  /* ============ Warm palette (Claude-inspired) ============ */
+  --color-brand: #c96442;          /* Terracotta */
+  --color-brand-light: #d97757;    /* Coral */
+  --color-brand-hover: #b55435;    /* Deep terracotta for hover */
+  --color-parchment: #f5f4ed;      /* Page background */
+  --color-ivory: #faf9f5;          /* Card surface */
+  --color-warm-sand: #e8e6dc;      /* Raised surfaces */
+  --color-border-cream: #f0eee6;   /* Light border */
+  --color-border-warm: #e8e6dc;    /* Prominent border */
+  --color-ring-warm: #d1cfc5;      /* Ring shadow color */
+  --color-olive-gray: #5e5d59;     /* Secondary text */
+  --color-stone-gray: #87867f;     /* Tertiary text */
+  --color-charcoal-warm: #4d4c48;  /* Primary text on warm */
+  --color-near-black: #141413;     /* Darkest warm text */
+  --color-dark-surface: #30302e;   /* Dark panel */
+
+  /* Semantic warm score colors (replace cold green/amber/red) */
+  --color-success: #7a8c5c;        /* Warm olive green */
+  --color-warning: #d4a04a;        /* Amber honey */
+  --color-danger: #b53333;         /* Error crimson */
+
+  --color-text-tertiary: var(--color-olive-gray);
+  --color-text-quaternary: var(--color-stone-gray);
+
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
+}
+
+:root {
+  /* Warm light theme — inspired by Claude (Anthropic) */
+  --font-serif: "Iowan Old Style", Georgia, "Songti SC", "STSong", "Noto Serif SC", "Source Han Serif SC", serif;
+
+  --background: #f5f4ed;           /* Parchment */
+  --foreground: #141413;           /* Near Black (warm) */
+  --card: #faf9f5;                 /* Ivory */
+  --card-foreground: #141413;
+  --popover: #faf9f5;
+  --popover-foreground: #141413;
+
+  --primary: #c96442;              /* Terracotta */
+  --primary-foreground: #faf9f5;
+  --secondary: #e8e6dc;            /* Warm Sand */
+  --secondary-foreground: #4d4c48;
+  --muted: #f0eee6;                /* Border Cream tint as muted */
+  --muted-foreground: #5e5d59;     /* Olive Gray */
+  --accent: #e8e6dc;
+  --accent-foreground: #141413;
+  --destructive: #b53333;
+
+  --border: #f0eee6;               /* Border Cream */
+  --input: #e8e6dc;
+  --ring: #c96442;                 /* Terracotta ring on focus */
+
+  /* Warm chart palette */
+  --chart-1: #c96442;
+  --chart-2: #d97757;
+  --chart-3: #d4a04a;
+  --chart-4: #7a8c5c;
+  --chart-5: #87867f;
+
+  --radius: 0.5rem;
+
+  --sidebar: #faf9f5;              /* Ivory sidebar */
+  --sidebar-foreground: #4d4c48;
+  --sidebar-primary: #c96442;
+  --sidebar-primary-foreground: #faf9f5;
+  --sidebar-accent: #e8e6dc;       /* Warm Sand active */
+  --sidebar-accent-foreground: #141413;
+  --sidebar-border: #f0eee6;
+  --sidebar-ring: #c96442;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-feature-settings: "ss01", "cv11";
+  }
+  html {
+    @apply font-sans;
+  }
+  /* Serif headlines, Claude style — weight 500 only, generous line-height */
+  h1, h2, h3 {
+    font-family: var(--font-serif);
+    font-weight: 500;
+    letter-spacing: -0.01em;
+  }
+  h1 { line-height: 1.1; }
+  h2 { line-height: 1.2; }
+  h3 { line-height: 1.25; }
+  /* Generous editorial body rhythm */
+  p {
+    line-height: 1.6;
+  }
+}

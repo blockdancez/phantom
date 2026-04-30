@@ -1,0 +1,28 @@
+node_modules/
+test-project/
+project/
+projects/
+.phantom/
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+.Spotlight-V100
+.Trashes
+.fseventsd
+.DocumentRevisions-V100
+.TemporaryItems
+
+# JetBrains IDEs
+.idea/
+*.iml
+*.iws
+*.ipr
+
+# VSCode
+.vscode/
+
+# Logs
+*.log

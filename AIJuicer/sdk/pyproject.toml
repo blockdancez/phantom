@@ -1,0 +1,30 @@
+[project]
+name = "aijuicer-sdk"
+version = "0.8.0"
+description = "AI 榨汁机 (AIJuicer) Agent SDK —— 5 分钟接入流水线的一个步骤"
+readme = "README.md"
+requires-python = ">=3.12"
+license = { text = "MIT" }
+authors = [{ name = "AIJuicer" }]
+dependencies = [
+    "httpx>=0.27",
+    "redis>=5.0",
+    "structlog>=24.1",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.23",
+    "ruff>=0.3",
+    "mypy>=1.8",
+]
+
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["aijuicer_sdk*"]
+exclude = ["examples*", "tests*"]
